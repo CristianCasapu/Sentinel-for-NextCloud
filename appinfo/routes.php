@@ -15,7 +15,9 @@ return [
 		['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
 	],
 	'ocs' => [
+		['name' => 'api#overview', 'url' => '/api/v1/overview', 'verb' => 'GET'],
 		['name' => 'api#posture', 'url' => '/api/v1/posture', 'verb' => 'GET'],
+		['name' => 'api#testMail', 'url' => '/api/v1/mail/test', 'verb' => 'POST'],
 
 		['name' => 'api#events', 'url' => '/api/v1/events', 'verb' => 'GET'],
 		['name' => 'api#acknowledgeEvents', 'url' => '/api/v1/events/seen', 'verb' => 'POST'],

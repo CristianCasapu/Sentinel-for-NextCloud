@@ -109,6 +109,55 @@ export interface InventoryReport {
 	busy: BusyRow[]
 }
 
+export interface Watcher {
+	id: string
+	name: string
+	on: boolean
+	what: string
+}
+
+export interface OverviewReport {
+	state: State
+	counts: Record<State, number>
+	headline: string
+	checkedAt: number
+	numbers: {
+		accounts: number
+		withoutTwoFactor: number
+		administrators: number
+		links: number
+		linkOpens: number
+		linkBusiestNetworks: number
+		tokens: number
+		coldTokens: number
+		baselineFiles: number
+		baselineChanged: number
+		baselineComparedAt: number
+		exposureServed: number
+		exposureCheckedAt: number
+		certificateDays: number
+		certificateKnown: boolean
+	}
+	watchers: Watcher[]
+	events: {
+		day: Record<string, number>
+		week: Record<string, number>
+		unseen: number
+		recent: EventRow[]
+	}
+	delivery: {
+		enabled: boolean
+		from: string
+		digest: boolean
+		digestHour: number
+		recipients: string[]
+		configured: boolean
+		inApp: boolean
+		inAppFrom: string
+	}
+	busy: BusyRow[]
+}
+
 export interface ExposureReport {
 	reachable: boolean
 	base: string
@@ -132,6 +181,12 @@ export interface EventRow {
 }
 
 const unwrap = <T>(response: { data: { ocs: { data: T } } }): T => response.data.ocs.data
+
+export const overview = async (): Promise<OverviewReport> =>
+	unwrap(await axios.get(base('overview')))
+
+export const testMail = async () =>
+	unwrap<{ sent: boolean, recipients: string[] }>(await axios.post(base('mail/test')))
 
 export const posture = async (): Promise<PostureReport> =>
 	unwrap(await axios.get(base('posture')))

@@ -14,6 +14,21 @@ in February that would still work today. None of those is a vulnerability. Each
 is a door that was opened for a reason and never closed, and together they are
 how most installations are actually lost.
 
+## Where it lives
+
+**Administration → Sentinel**, and it is the whole app, not a settings form. The
+two questions an administrator has arrive together — *is anything wrong, and
+what is watching for it* — and answering them on two different screens is how
+one of them stops being asked. So that page carries the overview, the findings,
+the file baseline, the inventory of every way in, the journal and every setting,
+and it is the same console as the full-page app in the menu.
+
+The overview answers, on one screen: what state the server is in, what is being
+watched and what is not, what has happened lately, and — the part nobody ever
+checks — whether any of it would actually reach a person. A server with every
+watcher running and no way to reach anybody is a server with no watchers at all,
+and from the inside the two look identical.
+
 ## What it does
 
 **Answers the questions nobody asks until it is too late.** One page, worst
@@ -94,6 +109,21 @@ application passwords and sessions in each person's own settings, group
 membership in administration. Reviewing them means four pages per account, which
 is why nobody ever does. Here they are in one list, oldest and most open first,
 each with an expiry, a revoke or a remove beside it.
+
+**Tells you, wherever you are.** Findings go to the bell menu of every
+administrator, and anything serious also goes out by mail — to every
+administrator who has an address, and to any address you add by hand, which is
+usually the one that reaches a phone rather than a mailbox on this same server.
+An administrator who is not signed in does not have a bell, and whatever
+happened at three in the morning would otherwise be eight hours old before
+anybody opened a browser. There is a **Send a test message** button, so that
+"mail is configured" can be replaced by "mail arrived".
+
+**Sends a summary once a day**, at an hour you choose, even when there is
+nothing to say. "Nothing happened" arriving every morning is itself information:
+the morning it stops arriving is the morning to go and look at why, because a
+server that has quietly stopped watching looks exactly like a server where
+nothing is wrong.
 
 **Says nothing twice.** A page that repeats the same standing situation every
 fifteen minutes is a page people learn to ignore, so a finding is recorded once
@@ -200,6 +230,7 @@ running it is better placed to make them.
 
 | | |
 |---|---|
+| **Being told** | The bell, mail, from which severity each, extra addresses, and the daily summary and its hour |
 | **Watching** | Whether to watch at all, how often, who is told, from which severity, and how long the journal is kept |
 | **What counts as too old** | Stale application passwords, idle sessions, dormant administrators, links with no expiry |
 | **The files** | Which parts of the installation the baseline covers, which file kinds, what to skip, the size limit, and the hash |

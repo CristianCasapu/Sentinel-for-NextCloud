@@ -31,6 +31,41 @@ class EventMapper extends QBMapper {
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * Everything since a moment, oldest last — what the daily summary reads.
+	 *
+	 * @return Event[]
+	 */
+	public function since(int $when, int $limit = 200): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->gte('occurred', $qb->createNamedParameter($when, IQueryBuilder::PARAM_INT)))
+			->orderBy('occurred', 'DESC')
+			->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * How many of each severity since a moment, for the overview.
+	 *
+	 * @return array<string, int>
+	 */
+	public function tally(int $when): array {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('severity')
+			->selectAlias($qb->func()->count('*'), 'n')
+			->from($this->getTableName())
+			->where($qb->expr()->gte('occurred', $qb->createNamedParameter($when, IQueryBuilder::PARAM_INT)))
+			->groupBy('severity');
+		$result = $qb->executeQuery();
+		$out = ['notice' => 0, 'warning' => 0, 'alarm' => 0];
+		while ($row = $result->fetch()) {
+			$out[(string)$row['severity']] = (int)$row['n'];
+		}
+		$result->closeCursor();
+		return $out;
+	}
+
 	public function unseen(): int {
 		$qb = $this->db->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'n'))->from($this->getTableName())

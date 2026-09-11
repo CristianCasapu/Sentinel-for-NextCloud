@@ -22,14 +22,33 @@ jobs:
         # always say so: it can finish happily and write an empty bundle, which
         # installs perfectly and then does nothing at all. Size is the only
         # thing that catches that.
+        #
+        # The entry points are thin on purpose — both mount the same console, so
+        # Vite puts the real weight in a shared chunk — which is why the total is
+        # what gets the meaningful threshold.
         run: |
           for bundle in js/sentinel-main.mjs js/sentinel-admin.mjs; do
             size=$(stat -c%s "$bundle" 2>/dev/null || echo 0)
             echo "$bundle is $size bytes"
-            if [ "$size" -lt 4096 ]; then
+            if [ "$size" -lt 120 ]; then
               echo "::error::$bundle is $size bytes, which means the build produced nothing usable"
               exit 1
             fi
+          done
+          total=$(cat js/*.mjs | wc -c)
+          echo "all bundles together are $total bytes"
+          if [ "$total" -lt 200000 ]; then
+            echo "::error::the built JavaScript is only $total bytes in total, which means the build produced nothing usable"
+            exit 1
+          fi
+          # An entry that imports a chunk which was never written installs fine
+          # and then fails in the browser with nothing in any server log.
+          for import in $(grep -ho 'from"\./[^"]*"' js/sentinel-*.mjs | sed 's/from"\.\///; s/"$//'); do
+            if [ ! -f "js/$import" ]; then
+              echo "::error::an entry point imports js/$import, which does not exist"
+              exit 1
+            fi
+            echo "js/$import is present"
           done
       - name: Fail if the built files were not committed
         run: git diff --exit-code -- js/

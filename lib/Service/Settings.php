@@ -28,6 +28,13 @@ class Settings {
 	 * @var array<string, array{0: mixed, 1: string, 2?: int|float, 3?: int|float}>
 	 */
 	private const SCHEMA = [
+		// Being told
+		'email_enabled' => [true, 'bool'],
+		'email_from' => ['alarm', 'enum:notice,warning,alarm'],
+		'email_extra' => ['', 'string'],
+		'digest_enabled' => [true, 'bool'],
+		'digest_hour' => [8, 'int', 0, 23],
+
 		// Watching
 		'watch_enabled' => [true, 'bool'],
 		'watch_interval' => [900, 'int', 300, 86400],
@@ -84,6 +91,33 @@ class Settings {
 	];
 
 	public function __construct(private IAppConfig $config) {
+	}
+
+	public function emailEnabled(): bool {
+		return (bool)$this->get('email_enabled');
+	}
+
+	/**
+	 * How serious something has to be before it is worth an email.
+	 *
+	 * Alarms only, because an inbox that fills up with routine is an inbox
+	 * where the one message that mattered scrolls off the first screen.
+	 */
+	public function emailFrom(): string {
+		return (string)$this->get('email_from');
+	}
+
+	/** @return string[] */
+	public function emailExtra(): array {
+		return $this->list('email_extra');
+	}
+
+	public function digestEnabled(): bool {
+		return (bool)$this->get('digest_enabled');
+	}
+
+	public function digestHour(): int {
+		return (int)$this->get('digest_hour');
 	}
 
 	public function watchEnabled(): bool {

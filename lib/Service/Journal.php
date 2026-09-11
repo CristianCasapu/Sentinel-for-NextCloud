@@ -34,6 +34,7 @@ class Journal {
 		private Settings $settings,
 		private INotificationManager $notifications,
 		private IGroupManager $groups,
+		private Messenger $messenger,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -72,6 +73,9 @@ class Journal {
 
 			$stored = $this->events->insert($event);
 			$this->tell($stored);
+			// And out of the building, for anything serious: an administrator
+			// who is not signed in has no bell.
+			$this->messenger->announce($stored);
 			return $stored;
 		} catch (\Throwable $e) {
 			// Failing to write the journal must never break whatever was

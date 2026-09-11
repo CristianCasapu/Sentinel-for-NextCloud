@@ -5,6 +5,40 @@ All notable changes to Sentinel are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-09-11
+
+The admin page stops being a settings form and becomes the whole app, and
+findings stop waiting for somebody to come and look at them.
+
+### Added
+
+* **An overview**, and the admin page now carries all of it. Administration →
+  Sentinel has the overview, the findings, the file baseline, the inventory, the
+  journal and the settings — the same console as the full-page app. The two
+  questions an administrator has arrive together (is anything wrong, and what is
+  watching for it) and answering them on two screens is how one of them stops
+  being asked.
+* The overview says, on one screen: the state of the server, six figures worth
+  knowing, **what is being watched and what is not** — plainly, because the most
+  expensive mistake with an app like this is assuming it watches something it was
+  never told to watch — what has happened lately, and whether any of it would
+  actually reach a person.
+* **Email.** Anything serious goes to every administrator who has an address and
+  to any address added by hand, which is usually the one that reaches a phone
+  rather than a mailbox on this same server — which may be the thing that is
+  down. An administrator who is not signed in does not have a bell.
+* **A daily summary** at an hour you choose, sent even when there is nothing to
+  say: the morning it stops arriving is the morning to go and look at why.
+* **A test message button**, so that "mail is configured" can be replaced by
+  "mail arrived".
+
+### Changed
+
+* The bell settings moved into a **Being told** group at the top of the settings,
+  next to the mail settings, since they answer the same question.
+
+[1.2.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+
 ## [1.1.0] — 2026-09-11
 
 An open link is a decision, not an oversight. This release stops treating it as
@@ -55,7 +89,7 @@ one, and spends the attention on things that are actually worth an alarm.
   and the certificate simply runs out on a Saturday.
 * `occ sentinel:check --probe`.
 
-[1.1.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+[1.1.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases
 
 ## [1.0.0] — 2026-09-11
 

@@ -12,6 +12,8 @@ use OCA\Sentinel\Service\ChangeWatch;
 use OCA\Sentinel\Service\Exposure;
 use OCA\Sentinel\Service\Inventory;
 use OCA\Sentinel\Service\Journal;
+use OCA\Sentinel\Service\Messenger;
+use OCA\Sentinel\Service\Overview;
 use OCA\Sentinel\Service\Posture;
 use OCA\Sentinel\Service\Settings;
 use OCP\AppFramework\Http;
@@ -38,11 +40,33 @@ class ApiController extends OCSController {
 		private ChangeWatch $changes,
 		private Inventory $inventory,
 		private Journal $journal,
+		private Overview $overview,
+		private Messenger $messenger,
 		private Settings $settings,
 		private IUserSession $session,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct('sentinel', $request);
+	}
+
+	/**
+	 * The whole picture in one answer: what is watched, what is not, what has
+	 * happened lately, and whether any of it would reach a person.
+	 */
+	public function overview(): DataResponse {
+		return new DataResponse($this->overview->assemble());
+	}
+
+	/**
+	 * Send a test message, so that "mail is configured" can be replaced by
+	 * "mail arrived".
+	 */
+	public function testMail(): DataResponse {
+		$sent = $this->messenger->test();
+		return new DataResponse(
+			['sent' => $sent, 'recipients' => array_keys($this->messenger->recipients())],
+			$sent ? Http::STATUS_OK : Http::STATUS_BAD_REQUEST,
+		);
 	}
 
 	/** How the installation is doing. */
