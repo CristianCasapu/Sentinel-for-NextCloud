@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace OCA\Sentinel\Command;
 
+use OCA\Sentinel\Service\Exposure;
 use OCA\Sentinel\Service\Inventory;
 use OCA\Sentinel\Service\Posture;
 use OCP\IDateTimeFormatter;
@@ -23,6 +24,7 @@ class Check extends Command {
 	public function __construct(
 		private Posture $posture,
 		private Inventory $inventory,
+		private Exposure $exposure,
 		private IDateTimeFormatter $dates,
 	) {
 		parent::__construct();
@@ -33,10 +35,17 @@ class Check extends Command {
 			->setDescription('Report on the security posture of this installation')
 			->addOption('json', null, InputOption::VALUE_NONE, 'Print the report as JSON')
 			->addOption('quiet-when-clean', null, InputOption::VALUE_NONE, 'Print nothing unless something needs attention')
-			->addOption('inventory', null, InputOption::VALUE_NONE, 'Also list open links, sessions and application passwords');
+			->addOption('inventory', null, InputOption::VALUE_NONE, 'Also list open links, sessions and application passwords')
+			->addOption('probe', null, InputOption::VALUE_NONE, 'Ask the web server first what it is willing to serve');
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
+		if ($input->getOption('probe')) {
+			// Asked for explicitly, because it means thirty requests to the
+			// server's own address and that should never be a side effect.
+			$this->exposure->refresh();
+		}
+
 		$report = $this->posture->report();
 
 		if ($input->getOption('json')) {

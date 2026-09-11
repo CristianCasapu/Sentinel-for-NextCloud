@@ -8,32 +8,51 @@ declare(strict_types=1);
 namespace OCA\Sentinel\Listener;
 
 use OCA\Sentinel\Service\Journal;
+use OCA\Sentinel\Service\LinkWatch;
 use OCA\Sentinel\Service\Settings;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\IRequest;
 use OCP\Share\Events\ShareCreatedEvent;
+use OCP\Share\Events\ShareDeletedEvent;
 use OCP\Share\IShare;
 
 /**
- * A new way in was just created.
+ * A link was made, or removed.
  *
- * Only links are worth mentioning. A share with a colleague is addressed to a
- * person who had to sign in to use it; a link is addressed to whoever ends up
- * holding it, which over a long enough period is everybody.
+ * Making one is ordinary and is not announced: a public link is a feature being
+ * used as intended, and a server that comments on every one of them teaches
+ * people to stop reading. The setting exists for installations that want to
+ * know, and it is off.
  *
- * @template-implements IEventListener<ShareCreatedEvent>
+ * Removing one matters for a duller reason — whatever was remembered about how
+ * that link was being used should go with it.
+ *
+ * @template-implements IEventListener<Event>
  */
 class ShareListener implements IEventListener {
 	public function __construct(
 		private Journal $journal,
+		private LinkWatch $links,
 		private Settings $settings,
 		private IRequest $request,
 	) {
 	}
 
 	public function handle(Event $event): void {
+		if ($event instanceof ShareDeletedEvent) {
+			$share = $event->getShare();
+			if (in_array($share->getShareType(), [IShare::TYPE_LINK, IShare::TYPE_EMAIL], true)) {
+				// Leave nothing behind for a link that no longer exists.
+				$this->links->forget((int)$share->getId());
+			}
+			return;
+		}
+
 		if (!$event instanceof ShareCreatedEvent || !$this->settings->watchEnabled()) {
+			return;
+		}
+		if (!$this->settings->judgeOpenLinks()) {
 			return;
 		}
 

@@ -37,6 +37,7 @@ class Inventory {
 		private IGroupManager $groups,
 		private IRegistry $twoFactor,
 		private PlaceMapper $places,
+		private LinkWatch $linkUse,
 		private Settings $settings,
 		private LoggerInterface $logger,
 	) {
@@ -60,6 +61,11 @@ class Inventory {
 			->setMaxResults($limit);
 		$result = $qb->executeQuery();
 
+		// How each of them is actually being used, which is the part worth
+		// looking at. Whether a link has a password is a decision somebody made
+		// on purpose; whether it is suddenly being opened by strangers is not.
+		$usage = $this->linkUse->totals(30);
+
 		$links = [];
 		$openForever = 0;
 		$old = $this->settings->oldLinkDays() * 86400;
@@ -71,8 +77,10 @@ class Inventory {
 			if ($exposed) {
 				$openForever++;
 			}
+			$id = (int)$row['id'];
+			$used = $usage[$id] ?? ['views' => 0, 'downloads' => 0, 'failures' => 0, 'networks' => 0, 'lastSeen' => 0];
 			$links[] = [
-				'id' => (int)$row['id'],
+				'id' => $id,
 				'type' => (int)$row['share_type'] === IShare::TYPE_EMAIL ? 'mail' : 'link',
 				'owner' => (string)$row['uid_owner'],
 				'createdBy' => (string)$row['uid_initiator'],
@@ -86,6 +94,11 @@ class Inventory {
 				'canDownload' => $this->downloadAllowed((string)($row['attributes'] ?? '')),
 				'exposed' => $exposed,
 				'stale' => $expires === 0 && $created > 0 && $created < time() - $old,
+				'views' => $used['views'],
+				'downloads' => $used['downloads'],
+				'failures' => $used['failures'],
+				'networks' => $used['networks'],
+				'lastUsed' => $used['lastSeen'],
 			];
 		}
 		$result->closeCursor();
@@ -248,6 +261,24 @@ class Inventory {
 	 * the cache keeps it, which is precisely the wrong behaviour for the one
 	 * operation where "eventually" is not good enough.
 	 */
+	/**
+	 * End everything that account is currently signed in with.
+	 *
+	 * Used when something has gone badly wrong and the priority is that it
+	 * stops now — a sync client feeding encrypted files over the originals does
+	 * not care that its owner has been marked disabled; it holds a token, and
+	 * the token is what has to go.
+	 */
+	public function revokeAllTokens(string $uid): bool {
+		try {
+			\OCP\Server::get(\OCP\Authentication\Token\IProvider::class)->invalidateTokensOfUser($uid, null);
+			return true;
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not end an account\'s sessions', ['exception' => $e, 'uid' => $uid]);
+			return false;
+		}
+	}
+
 	public function revokeToken(string $uid, int $id): bool {
 		try {
 			$provider = \OCP\Server::get(\OC\Authentication\Token\IProvider::class);

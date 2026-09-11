@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace OCA\Sentinel\Controller;
 
 use OCA\Sentinel\Service\Baseline;
+use OCA\Sentinel\Service\ChangeWatch;
+use OCA\Sentinel\Service\Exposure;
 use OCA\Sentinel\Service\Inventory;
 use OCA\Sentinel\Service\Journal;
 use OCA\Sentinel\Service\Posture;
@@ -32,6 +34,8 @@ class ApiController extends OCSController {
 		IRequest $request,
 		private Posture $posture,
 		private Baseline $baseline,
+		private Exposure $exposure,
+		private ChangeWatch $changes,
 		private Inventory $inventory,
 		private Journal $journal,
 		private Settings $settings,
@@ -64,7 +68,41 @@ class ApiController extends OCSController {
 			'links' => $this->inventory->links(),
 			'tokens' => $this->inventory->tokens(),
 			'accounts' => $this->inventory->accounts(),
+			'busy' => $this->changes->busy(),
 		]);
+	}
+
+	/** What the last self-probe found. */
+	public function exposure(): DataResponse {
+		return new DataResponse($this->exposure->last());
+	}
+
+	/**
+	 * Ask the web server, now, what it is willing to hand out.
+	 *
+	 * Thirty-odd requests to itself, so it is a button rather than something
+	 * the page does on load.
+	 */
+	public function probe(): DataResponse {
+		try {
+			$result = $this->exposure->refresh();
+			if (($result['served'] ?? []) !== []) {
+				$this->journal->record(
+					'sentinel_exposed',
+					Journal::ALARM,
+					count($result['served']) . ' files that should never be served are being served by the web server.',
+					subject: 'exposure',
+					actor: $this->session->getUser()?->getUID(),
+					address: $this->request->getRemoteAddress(),
+					detail: ['served' => array_column($result['served'], 'path')],
+					quiet: 3600,
+				);
+			}
+			return new DataResponse($result);
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not probe its own address', ['exception' => $e]);
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	public function baselineStatus(): DataResponse {

@@ -18,10 +18,9 @@ how most installations are actually lost.
 
 **Answers the questions nobody asks until it is too late.** One page, worst
 first, with the reason beside each finding and what to do about it underneath.
-Who can be signed in as with a password alone. How many links are open to
-anyone holding the address, how old they are, and what stands between them and
-the files. Which application passwords have not been used in months and would
-still work. Whether anything at all is keeping a record of what happens.
+Who can be signed in as with a password alone. Which application passwords have
+not been used in months and would still work. How long the certificate has left.
+Whether anything at all is keeping a record of what happens.
 
 **Solves the permanently-failing integrity check.** Nextcloud verifies its own
 files against the signatures it shipped with, which is the right thing to do —
@@ -44,6 +43,51 @@ before, with nothing but a password protecting it. Each of those is perfectly
 ordinary when it was you who did it, and the last step of an intrusion when it
 was not; the only way to tell them apart is to be told at the time.
 
+**Asks the web server what it actually hands out.** Every other check on this
+page is a statement about what the code intends. This one is an ordinary
+anonymous visitor requesting the files that must never be served — the
+configuration with the database password in it, the log, the `.git` directory
+that any app installed from source leaves in the web root — and reporting
+anything that comes back. None of those leaks are Nextcloud's doing. They come
+from a rewrite rule changed during a debugging session, a virtual host copied
+from another site, an `AllowOverride None` that quietly stopped the shipped
+`.htaccess` from being read at all. The code is identical in every one of those
+cases, and so is every check that only reads the code.
+
+**Watches for the one thing that can destroy everything without a single
+password being wrong.** A laptop with a sync client catches ransomware; the
+ransomware encrypts the synced folder; the client does exactly what it is built
+to do and uploads every encrypted file over the original. Nothing was breached,
+no permission was exceeded, and every check that asks about passwords says the
+server is fine. The only visible thing is the rate — hundreds of files rewritten
+in minutes, which no person does by hand. Sentinel counts that, and can be told
+to disable the account and end its sessions by itself. That last part is off
+until you ask for it.
+
+**Watches links rather than lecturing about them.** A public link without a
+password is not a mistake. It is the most useful thing Nextcloud does — a folder
+handed to somebody who has no account and is not going to make one — and a
+security page that complains about it every week is a page nobody reads. So
+Sentinel counts instead: how many times each link was opened, from how many
+different networks, how many attempts at a protected one were refused. A link
+sent to two people and opened from forty networks in an afternoon is the same
+link doing something entirely different, and each link is measured against what
+that link normally does, so a busy link is allowed to be busy.
+
+**Notices code arriving.** Enabling an app is the most consequential thing
+anybody can do to a Nextcloud installation: arbitrary code, running as the
+server, with access to everybody's files. It is also completely silent. So is
+switching one off, which is the first move against a server that is being
+watched.
+
+**Notices the settings that decide who this server trusts.** A changed trusted
+domain sends password resets somewhere else. A changed trusted proxy makes the
+server believe whatever an attacker puts in a header, including which address a
+request came from — which is exactly what the brute-force protection counts.
+Both are one line in a file, and neither announces itself. Only a fingerprint of
+each value is stored, never the value: keeping a second copy of the settings
+that matter most would be an odd way to protect them.
+
 **Puts every way in on one page, with the means to close it.** Nextcloud hands
 out access in four places and shows them together nowhere: shares in Files,
 application passwords and sessions in each person's own settings, group
@@ -64,6 +108,12 @@ expiry you set, the token you revoke, the baseline you approve. There is no
 automatic remediation, no blocking, no quarantine, and nothing that can lock you
 out of your own server because a heuristic had an opinion at three in the
 morning.
+
+It has no opinion about how you share. It will not tell you that a link should
+have a password, that a link should expire, or that a folder should not be
+public — those are decisions, they are usually right, and a security page that
+second-guesses them is a security page that gets ignored. (There is a switch for
+anyone who does want that reading. It is off.)
 
 It does not collect anything about visitors. Sign-ins are remembered as the
 *network* an account uses, not the address — a home connection changes address
@@ -116,6 +166,7 @@ occ sentinel:check                     # the report
 occ sentinel:check --inventory         # and every open link, session and token
 occ sentinel:check --json              # for something else to read
 occ sentinel:check --quiet-when-clean  # prints nothing unless it matters
+occ sentinel:check --probe             # ask the web server first what it serves
 ```
 
 The exit code is nonzero when something needs attention, so a weekly cron entry
@@ -153,6 +204,9 @@ running it is better placed to make them.
 | **What counts as too old** | Stale application passwords, idle sessions, dormant administrators, links with no expiry |
 | **The files** | Which parts of the installation the baseline covers, which file kinds, what to skip, the size limit, and the hash |
 | **Where people sign in from** | Whether to remember networks at all, whether to say anything about new ones, how precise a network is, and which accounts to ignore |
+| **Public links** | Whether to watch how links are used, how big a crowd is worth mentioning, how far above a link's own record it has to be, and how many refused password attempts count as guessing |
+| **Files changing very fast** | Whether to watch, over what window, how many rewrites, deletes or renames-to-one-extension, and whether to raise an alarm or disable the account outright |
+| **Asking the server what it serves** | Whether to probe, any extra paths particular to this installation, and how many days' warning the certificate gets |
 
 ## What it stores
 
@@ -164,8 +218,10 @@ Three tables, and nothing else:
   retention you set
 * `sentinel_places` — for each account, the networks it has signed in from, when
   each was first and last seen, and how often
+* `sentinel_link_use` — one row per public link per day: how many times it was
+  opened, downloaded and refused, and from how many networks
 
-Uninstalling removes all three.
+Uninstalling removes all four.
 
 ## Licence
 

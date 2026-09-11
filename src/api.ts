@@ -67,6 +67,11 @@ export interface LinkRow {
 	canDownload: boolean
 	exposed: boolean
 	stale: boolean
+	views: number
+	downloads: number
+	failures: number
+	networks: number
+	lastUsed: number
 }
 
 export interface TokenRow {
@@ -91,10 +96,26 @@ export interface AccountRow {
 	places: number
 }
 
+export interface BusyRow {
+	uid: string
+	kind: string
+	count: number
+}
+
 export interface InventoryReport {
 	links: { links: LinkRow[], total: number, openForever: number }
 	tokens: { tokens: TokenRow[], total: number, cold: number }
 	accounts: { accounts: AccountRow[], total: number, withoutTwoFactor: number }
+	busy: BusyRow[]
+}
+
+export interface ExposureReport {
+	reachable: boolean
+	base: string
+	checked: number
+	served: Array<{ path: string, code: number }>
+	probedAt: number
+	never?: boolean
 }
 
 export interface EventRow {
@@ -124,6 +145,12 @@ export const markEventsSeen = async () => unwrap(await axios.post(base('events/s
 
 export const inventory = async (): Promise<InventoryReport> =>
 	unwrap(await axios.get(base('inventory')))
+
+export const exposure = async (): Promise<ExposureReport> =>
+	unwrap(await axios.get(base('exposure')))
+
+export const probe = async (): Promise<ExposureReport> =>
+	unwrap(await axios.post(base('exposure')))
 
 export const baselineStatus = async (): Promise<BaselineStatus> =>
 	unwrap(await axios.get(base('baseline')))

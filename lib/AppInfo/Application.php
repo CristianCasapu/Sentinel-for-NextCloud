@@ -7,7 +7,11 @@ declare(strict_types=1);
 
 namespace OCA\Sentinel\AppInfo;
 
+use OCA\Files_Sharing\Event\ShareLinkAccessedEvent;
+use OCA\Sentinel\Listener\AppListener;
+use OCA\Sentinel\Listener\ChangeListener;
 use OCA\Sentinel\Listener\FailureListener;
+use OCA\Sentinel\Listener\LinkListener;
 use OCA\Sentinel\Listener\PrivilegeListener;
 use OCA\Sentinel\Listener\ShareListener;
 use OCA\Sentinel\Listener\SignInListener;
@@ -17,6 +21,9 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\App\Events\AppDisableEvent;
+use OCP\App\Events\AppEnableEvent;
+use OCP\App\Events\AppUpdateEvent;
 use OCP\Authentication\Events\LoginFailedEvent;
 use OCP\Authentication\TwoFactorAuth\TwoFactorProviderForUserDisabled;
 use OCP\Authentication\TwoFactorAuth\TwoFactorProviderForUserUnregistered;
@@ -28,7 +35,11 @@ use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\IGroupManager;
 use OCP\L10N\IFactory;
+use OCP\Files\Events\Node\NodeDeletedEvent;
+use OCP\Files\Events\Node\NodeRenamedEvent;
+use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\Share\Events\ShareCreatedEvent;
+use OCP\Share\Events\ShareDeletedEvent;
 use OCP\User\Events\UserCreatedEvent;
 use OCP\User\Events\UserDeletedEvent;
 use OCP\User\Events\UserLoggedInEvent;
@@ -57,8 +68,24 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(TwoFactorProviderForUserDisabled::class, PrivilegeListener::class);
 		$context->registerEventListener(TwoFactorProviderForUserUnregistered::class, PrivilegeListener::class);
 
-		// What has just been opened to the world.
+		// Links: made, removed, and used.
 		$context->registerEventListener(ShareCreatedEvent::class, ShareListener::class);
+		$context->registerEventListener(ShareDeletedEvent::class, ShareListener::class);
+		$context->registerEventListener(ShareLinkAccessedEvent::class, LinkListener::class);
+
+		// Code arriving on the server. Enabling an app is arbitrary code running
+		// as the server with access to everybody's files, and nothing anywhere
+		// says so out loud.
+		$context->registerEventListener(AppEnableEvent::class, AppListener::class);
+		$context->registerEventListener(AppDisableEvent::class, AppListener::class);
+		$context->registerEventListener(AppUpdateEvent::class, AppListener::class);
+
+		// Files changing far faster than a person changes files. These fire on
+		// every write on the server, so the listener does nothing but compare a
+		// path and increment a counter.
+		$context->registerEventListener(NodeWrittenEvent::class, ChangeListener::class);
+		$context->registerEventListener(NodeDeletedEvent::class, ChangeListener::class);
+		$context->registerEventListener(NodeRenamedEvent::class, ChangeListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

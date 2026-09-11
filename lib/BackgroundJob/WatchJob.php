@@ -8,12 +8,15 @@ declare(strict_types=1);
 namespace OCA\Sentinel\BackgroundJob;
 
 use OCA\Sentinel\Service\Baseline;
+use OCA\Sentinel\Service\Exposure;
 use OCA\Sentinel\Service\Journal;
+use OCA\Sentinel\Service\LinkWatch;
 use OCA\Sentinel\Service\Posture;
 use OCA\Sentinel\Service\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 use OCP\IAppConfig;
+use OCP\IConfig;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -29,9 +32,12 @@ class WatchJob extends TimedJob {
 		ITimeFactory $time,
 		private Posture $posture,
 		private Baseline $baseline,
+		private Exposure $exposure,
+		private LinkWatch $links,
 		private Journal $journal,
 		private Settings $settings,
 		private IAppConfig $config,
+		private IConfig $systemConfig,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct($time);
@@ -51,6 +57,18 @@ class WatchJob extends TimedJob {
 		}
 
 		try {
+			$this->watchTheConfiguration();
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not read the configuration', ['exception' => $e]);
+		}
+
+		try {
+			$this->askTheWebServerOccasionally();
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not probe its own address', ['exception' => $e]);
+		}
+
+		try {
 			$this->speakUpAboutPosture();
 		} catch (\Throwable $e) {
 			$this->logger->error('Sentinel could not assess the posture of the installation', ['exception' => $e]);
@@ -58,6 +76,117 @@ class WatchJob extends TimedJob {
 
 		// Leave nothing behind that nobody will read.
 		$this->journal->prune();
+		$this->links->prune();
+	}
+
+	/**
+	 * The settings that decide who this server trusts.
+	 *
+	 * A changed trusted domain sends password resets somewhere else. A changed
+	 * trusted proxy makes the server believe whatever an attacker puts in a
+	 * header, including which address a request came from — which is precisely
+	 * what the brute-force protection counts. Neither change announces itself
+	 * anywhere, and both are one line in a file.
+	 */
+	private function watchTheConfiguration(): void {
+		$watched = [
+			'trusted_domains', 'trusted_proxies', 'forwarded_for_headers',
+			'overwrite.cli.url', 'overwritehost', 'overwriteprotocol', 'overwritewebroot', 'overwritecondaddr',
+			'datadirectory', 'skeletondirectory', 'appstoreenabled', 'appstoreurl', 'apps_paths',
+			'debug', 'loglevel', 'maintenance', 'installed',
+			'allow_local_remote_servers', 'auth.bruteforce.protection.enabled',
+			'twofactor_enforced', 'remember_login_cookie_lifetime', 'session_lifetime',
+			'lost_password_link', 'updater.server.url', 'has_internet_connection',
+		];
+
+		$now = [];
+		foreach ($watched as $key) {
+			$value = $this->systemConfig->getSystemValue($key, null);
+			if ($value === null) {
+				continue;
+			}
+			// The values themselves are never stored, only a fingerprint: this
+			// is a security app, and keeping a second copy of the settings that
+			// matter most would be an odd way to protect them.
+			$now[$key] = substr(hash('sha256', json_encode($value) ?: ''), 0, 16);
+		}
+
+		$before = json_decode($this->config->getValueString(Settings::APP, 'config_state', ''), true);
+		$this->config->setValueString(
+			Settings::APP,
+			'config_state',
+			json_encode($now, JSON_UNESCAPED_SLASHES) ?: '',
+		);
+
+		if (!is_array($before) || $before === []) {
+			// The first run has nothing to compare against, and announcing
+			// every setting as new would be noise on the day of installation.
+			return;
+		}
+
+		$moved = [];
+		foreach ($now as $key => $digest) {
+			if (!isset($before[$key])) {
+				$moved[] = $key . ' (set)';
+			} elseif ($before[$key] !== $digest) {
+				$moved[] = $key;
+			}
+		}
+		foreach ($before as $key => $digest) {
+			if (!isset($now[$key])) {
+				$moved[] = $key . ' (removed)';
+			}
+		}
+
+		if ($moved === []) {
+			return;
+		}
+
+		$this->journal->record(
+			'sentinel_config_changed',
+			Journal::ALARM,
+			count($moved) === 1
+				? 'A security setting changed: ' . $moved[0] . '.'
+				: count($moved) . ' security settings changed: ' . implode(', ', array_slice($moved, 0, 6)) . '.',
+			subject: 'config',
+			actor: null,
+			address: null,
+			detail: ['changed' => $moved],
+			quiet: 0,
+		);
+	}
+
+	/**
+	 * Ask the web server what it is willing to hand out, a few times a day.
+	 *
+	 * More often would be pointless — the answer only changes when somebody
+	 * changes the web server — and it costs thirty requests each time.
+	 */
+	private function askTheWebServerOccasionally(): void {
+		if (!$this->settings->probeEnabled()) {
+			return;
+		}
+		$last = $this->exposure->last();
+		if ((int)($last['probedAt'] ?? 0) > time() - 21600) {
+			return;
+		}
+
+		$now = $this->exposure->refresh();
+		$served = $now['served'] ?? [];
+		if ($served === []) {
+			return;
+		}
+
+		$this->journal->record(
+			'sentinel_exposed',
+			Journal::ALARM,
+			count($served) . ' files that should never be served are being served by the web server.',
+			subject: 'exposure',
+			actor: null,
+			address: null,
+			detail: ['served' => array_column($served, 'path'), 'base' => $now['base'] ?? ''],
+			quiet: 86400,
+		);
 	}
 
 	/**

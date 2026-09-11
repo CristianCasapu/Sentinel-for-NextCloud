@@ -22,6 +22,9 @@ return [
 
 		['name' => 'api#inventory', 'url' => '/api/v1/inventory', 'verb' => 'GET'],
 
+		['name' => 'api#exposure', 'url' => '/api/v1/exposure', 'verb' => 'GET'],
+		['name' => 'api#probe', 'url' => '/api/v1/exposure', 'verb' => 'POST'],
+
 		['name' => 'api#baselineStatus', 'url' => '/api/v1/baseline', 'verb' => 'GET'],
 		['name' => 'api#baselineCompare', 'url' => '/api/v1/baseline/compare', 'verb' => 'POST'],
 		['name' => 'api#baselineTake', 'url' => '/api/v1/baseline/take', 'verb' => 'POST'],

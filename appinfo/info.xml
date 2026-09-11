@@ -10,24 +10,32 @@ sets the right headers, offers two-factor authentication, and checks that its ow
 not been altered. Sentinel does not repeat any of that.
 
 What it does is answer the questions nobody asks until it is too late. Who has two-factor
-authentication and who does not. Which public links have no password and no expiry, and have
-been sitting there for months. Which application passwords were last used in February and are
-still valid. Whether a file in the installation changed, and whether that change was expected.
-And when any of it changes, who is told.
+authentication and who does not. Which application passwords were last used in February and
+are still valid. Whether a file in the installation changed, and whether that change was
+expected. What the web server hands out to anyone who simply asks for it. And when any of it
+changes, who is told.
+
+It has no opinion about how you share. A public link without a password is the feature
+working as intended, and a page that complains about it every week is a page nobody reads.
+What is watched is how a link is used compared with how that same link is normally used.
 
 * **A posture page** that checks what core does not, with the reason and the fix beside each finding
 * **A file baseline you can acknowledge**, so a deliberate patch stops raising an alarm and a
   real change is the only thing that does
-* **Watchers** that notice an account becoming an administrator, two-factor being switched off, a
-  new application password, or a public link created without a password, and say so
-* **An inventory** of public links, sessions and application passwords, with the age of each and
-  a way to end them
+* **A self-probe** that asks this server, as an anonymous visitor, for the files that must
+  never be served — the configuration, the log, the .git directory an app left in the web root
+* **A watch for files changing very fast**, which is what ransomware on somebody's laptop
+  looks like from the server's side, with the option of disabling the account outright
+* **Watchers** for an account becoming an administrator, two-factor being switched off, an app
+  being enabled, a trusted domain changing, or a link being opened by a crowd it was never sent to
+* **An inventory** of public links, sessions and application passwords, with how each is being
+  used and a way to end it
 * Every finding explains what it means and what happens if it is ignored, because a warning
   nobody understands is a warning nobody acts on
 
-Sentinel changes nothing on its own. It reports, and it acts only when asked.
+Sentinel changes nothing on its own unless you ask it to. It reports, and it acts only when told.
     ]]></description>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <licence>agpl</licence>
     <author mail="casapucristian@gmail.com">Cristian Casapu</author>
     <namespace>Sentinel</namespace>

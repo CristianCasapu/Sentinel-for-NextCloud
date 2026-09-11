@@ -43,6 +43,8 @@ class Posture {
 		private IConfig $config,
 		private IDBConnection $db,
 		private Baseline $baseline,
+		private Exposure $exposure,
+		private LinkWatch $links,
 		private Settings $settings,
 	) {
 	}
@@ -59,9 +61,11 @@ class Posture {
 			$this->publicLinks(),
 			$this->applicationPasswords(),
 			$this->fileBaseline(),
+			$this->whatIsServed(),
+			$this->certificate(),
+			$this->ransomwareWatch(),
 			$this->watchfulness(),
 			$this->passwordRules(),
-			$this->linkDefaults(),
 		];
 
 		$rank = [self::BAD => 0, self::WARN => 1, self::NOTE => 2, self::GOOD => 3];
@@ -195,8 +199,18 @@ class Posture {
 	}
 
 	/**
-	 * Links that anybody holding the address can open, and what stands between
-	 * them and the files.
+	 * The links that are open to anyone, and what is happening to them.
+	 *
+	 * A public link without a password is not a fault. It is the most useful
+	 * thing Nextcloud does — a folder handed to somebody who has no account and
+	 * is not going to make one — and telling its owner off every week for using
+	 * the feature as intended is how a page like this becomes wallpaper.
+	 *
+	 * So this counts rather than scolds, and the judgement it does make is
+	 * about behaviour: a link opened from far more networks than that link has
+	 * ever been opened from is the same link doing something different, and
+	 * that is worth a sentence. Anyone who does want the sterner reading can
+	 * switch it on; it is off because it is an opinion, not a finding.
 	 */
 	private function publicLinks(): array {
 		$qb = $this->db->getQueryBuilder();
@@ -215,17 +229,33 @@ class Posture {
 		$forever = (int)($row['forever'] ?? 0);
 		$oldest = (int)($row['oldest'] ?? 0);
 
+		$usage = $this->links->totals(30);
+		$views = array_sum(array_column($usage, 'views'));
+		$downloads = array_sum(array_column($usage, 'downloads'));
+		$busiest = 0;
+		foreach ($usage as $numbers) {
+			if ($numbers['networks'] > $busiest) {
+				$busiest = $numbers['networks'];
+			}
+		}
+
+		if ($total === 0) {
+			$summary = 'Nothing is shared by link.';
+		} elseif ($views + $downloads === 0) {
+			$summary = $total . ' links are open to anyone holding the address. None has been used in the last 30 days.';
+		} else {
+			$summary = $total . ' links open, used ' . ($views + $downloads) . ' times in the last 30 days'
+				. ($busiest > 0 ? ', the busiest from ' . $busiest . ' different networks.' : '.');
+		}
+
 		$state = self::GOOD;
-		$summary = $total === 0 ? 'Nothing is shared by link.' : $total . ' links are open to anyone holding the address.';
-		if ($total > 0 && $open === $total && $forever === $total) {
-			$state = self::WARN;
-			$summary = 'All ' . $total . ' public links have no password and no expiry.';
-		} elseif ($open > 0 || $forever > 0) {
+		if ($this->settings->judgeOpenLinks() && $open > 0) {
 			$state = self::NOTE;
 			$summary .= ' ' . $open . ' without a password, ' . $forever . ' that never expire.';
 		}
-		if ($oldest > 0 && $oldest < time() - (365 * 86400) && $forever > 0) {
-			$state = self::WARN;
+		if (!$this->settings->watchLinks()) {
+			$state = self::NOTE;
+			$summary .= ' Nothing is watching how they are used.';
 		}
 
 		return $this->finding(
@@ -233,16 +263,25 @@ class Posture {
 			'Links open to anyone',
 			$state,
 			$summary,
-			'A link with no expiry outlives the reason it was made. It stays in an email thread, a chat '
-			. 'history, a browser\'s address bar on a borrowed laptop — and it keeps working. Most leaks of '
-			. 'this kind are not attacks; they are an address that was passed on and never stopped working.',
-			'Give links an expiry by default, in Settings → Administration → Sharing, and require a password '
-			. 'for new ones. The list below shows what is open now, and can be given an expiry in one go.',
+			'A link is meant to be given away; that is the whole point of it. What is worth knowing is not '
+			. 'that a link exists but whether it has started being used by people it was never sent to — the '
+			. 'same address opened from dozens of networks in an afternoon, or a password-protected one being '
+			. 'guessed at. Each link is measured against what that link normally does, so a busy link is '
+			. 'allowed to be busy.',
+			$total === 0
+				? 'Nothing to do.'
+				: 'Nothing, unless you want to. The list shows how each link is being used, and any of them '
+				. 'can be given an expiry or removed there. Sentinel will say something on its own if one '
+				. 'starts behaving unlike itself.',
 			[
 				'total' => $total,
 				'withoutPassword' => $open,
 				'neverExpire' => $forever,
 				'oldest' => $oldest,
+				'views' => $views,
+				'downloads' => $downloads,
+				'busiestNetworks' => $busiest,
+				'watching' => $this->settings->watchLinks(),
 			],
 		);
 	}
@@ -406,30 +445,155 @@ class Posture {
 		);
 	}
 
-	/** What happens by default when somebody makes a link. */
-	private function linkDefaults(): array {
-		$enforcePassword = $this->config->getAppValue('core', 'shareapi_enforce_links_password', 'no') === 'yes';
-		$defaultExpiry = $this->config->getAppValue('core', 'shareapi_default_expire_date', 'no') === 'yes';
-		$enforceExpiry = $this->config->getAppValue('core', 'shareapi_enforce_expire_date', 'no') === 'yes';
+	/**
+	 * What the web server actually hands out to somebody who just asks.
+	 *
+	 * Every other check here is a statement about what the code intends. This
+	 * is the only one that asks the web server what it does, and the two part
+	 * company more often than anyone expects — a rewrite rule changed during a
+	 * debugging session, a virtual host copied from another site, an
+	 * AllowOverride that quietly stopped the shipped .htaccess being read at
+	 * all. The code is identical in every one of those cases.
+	 */
+	private function whatIsServed(): array {
+		$last = $this->exposure->last();
 
-		$weak = [];
-		if (!$enforcePassword) {
-			$weak[] = 'a link needs no password';
+		if (!$this->settings->probeEnabled()) {
+			return $this->finding(
+				'exposure',
+				'What the server hands out',
+				self::NOTE,
+				'Not being checked.',
+				'Nothing inside Nextcloud can tell you what the web server in front of it is willing to '
+				. 'serve. Only asking it can.',
+				'Turn the self-check on under Administration → Sentinel.',
+				$last,
+			);
 		}
-		if (!$defaultExpiry) {
-			$weak[] = 'a link never expires unless somebody sets a date';
+
+		if (($last['never'] ?? true) || (int)($last['probedAt'] ?? 0) === 0) {
+			return $this->finding(
+				'exposure',
+				'What the server hands out',
+				self::NOTE,
+				'Not asked yet.',
+				'The configuration file holds the database password. The log holds paths, names and '
+				. 'sometimes tokens. An app installed from git leaves its whole history in the web root. '
+				. 'None of those should be downloadable, and the only way to know is to try.',
+				'Press the button, or wait for the background job.',
+				$last,
+			);
+		}
+
+		if (!($last['reachable'] ?? false)) {
+			return $this->finding(
+				'exposure',
+				'What the server hands out',
+				self::NOTE,
+				'The server could not reach itself at ' . (string)($last['base'] ?? '?') . '.',
+				'The check works by being an ordinary visitor. If this installation cannot make a request '
+				. 'to its own address — a firewall, split DNS, a proxy that only listens for outside '
+				. 'traffic — then the check cannot run, and its silence should not be read as good news.',
+				'Check overwrite.cli.url in config.php, and that the server may open connections to itself.',
+				$last,
+			);
+		}
+
+		$served = $last['served'] ?? [];
+		return $this->finding(
+			'exposure',
+			'What the server hands out',
+			$served === [] ? self::GOOD : self::BAD,
+			$served === []
+				? 'Asked for ' . (int)($last['checked'] ?? 0) . ' files that should never be served, and was refused every time.'
+				: count($served) . ' files that should never be served are being served.',
+			'The configuration file holds the database password and the secret that signs every session. '
+			. 'The log holds paths and names. A .git directory left behind by an app installed from source '
+			. 'holds every version of everything, including whatever was committed by accident once and '
+			. 'removed later.',
+			$served === []
+				? 'Nothing. This is the check worth re-running after any change to the web server.'
+				: 'Anything listed below can be downloaded by whoever guesses the address, and some of it is '
+				. 'enough to take the server. Restore the shipped .htaccess and make sure AllowOverride lets '
+				. 'it be read, or block these paths in the virtual host.',
+			$last,
+		);
+	}
+
+	/** How long the certificate in front of this server has left. */
+	private function certificate(): array {
+		$certificate = $this->exposure->certificate();
+		if (!($certificate['checked'] ?? false)) {
+			return $this->finding(
+				'certificate',
+				'The certificate',
+				self::NOTE,
+				'Could not be read: ' . (string)($certificate['reason'] ?? 'unknown') . '.',
+				'A certificate that expires takes every sync client with it, all at once, and the first '
+				. 'anybody hears of it is the phone call.',
+				'Not necessarily a problem — a server behind a proxy that terminates TLS elsewhere will say '
+				. 'exactly this.',
+				$certificate,
+			);
+		}
+
+		$days = (int)$certificate['daysLeft'];
+		$warn = $this->settings->certificateWarnDays();
+		$state = self::GOOD;
+		if ($days <= 0) {
+			$state = self::BAD;
+		} elseif ($days <= $warn) {
+			$state = self::WARN;
 		}
 
 		return $this->finding(
-			'link_defaults',
-			'What a new link does by default',
-			$weak === [] ? self::GOOD : self::NOTE,
-			$weak === [] ? 'New links get a password and an expiry.' : ucfirst(implode(', and ', $weak)) . '.',
-			'Defaults are what happens when somebody is in a hurry, which is most of the time. A setting that '
-			. 'has to be remembered on every share is a setting that will be forgotten on the one that matters.',
-			'In Settings → Administration → Sharing, set a default expiry for link shares and, if it suits how '
-			. 'you work, require a password on them.',
-			['passwordRequired' => $enforcePassword, 'expiryByDefault' => $defaultExpiry, 'expiryEnforced' => $enforceExpiry],
+			'certificate',
+			'The certificate',
+			$state,
+			$days <= 0
+				? 'The certificate for ' . (string)$certificate['host'] . ' has expired.'
+				: 'Valid for another ' . $days . ' days, issued by ' . (string)$certificate['issuer'] . '.',
+			'Renewal is automatic until the day it is not — a changed address, a rate limit, a renewal hook '
+			. 'that stopped being run. Nothing tells you it has stopped working; the certificate simply runs '
+			. 'out on a Saturday.',
+			$days <= $warn
+				? 'Renew it now, and check that whatever was supposed to renew it is still running.'
+				: 'Nothing. This is watched so that a renewal which quietly stopped has somewhere to show up.',
+			$certificate,
+		);
+	}
+
+	/**
+	 * Whether anything is watching for the one thing that can destroy
+	 * everything without a single password being wrong.
+	 */
+	private function ransomwareWatch(): array {
+		$on = $this->settings->watchChurn();
+		$response = $this->settings->churnResponse();
+		$minutes = max(1, (int)round($this->settings->churnWindow() / 60));
+
+		return $this->finding(
+			'churn',
+			'Files changing very fast',
+			$on ? self::GOOD : self::WARN,
+			$on
+				? 'Watching. More than ' . $this->settings->churnWrites() . ' files rewritten or '
+					. $this->settings->churnDeletes() . ' deleted by one account in ' . $minutes . ' minutes '
+					. ($response === 'lock' ? 'disables the account and ends its sessions.' : 'raises an alarm.')
+				: 'Not watching.',
+			'A sync client on a machine that catches ransomware does exactly what it is built to do: it '
+			. 'uploads every encrypted file over the original. No password was wrong, no permission was '
+			. 'exceeded, and every check that asks about passwords and permissions says the server is fine. '
+			. 'The only visible thing is the rate — hundreds of files rewritten in minutes, which no person '
+			. 'does by hand.',
+			$on
+				? ($response === 'lock'
+					? 'Nothing. Bear in mind it will also stop somebody restoring a large backup into their '
+					. 'folder, which is the price of a switch that acts without asking.'
+					: 'Consider setting the response to disable the account rather than only report it. '
+					. 'Minutes matter here, and nobody reads a notification at three in the morning.')
+				: 'Turn it on under Administration → Sentinel.',
+			['watching' => $on, 'response' => $response, 'windowSeconds' => $this->settings->churnWindow()],
 		);
 	}
 

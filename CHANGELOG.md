@@ -5,6 +5,58 @@ All notable changes to Sentinel are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-09-11
+
+An open link is a decision, not an oversight. This release stops treating it as
+one, and spends the attention on things that are actually worth an alarm.
+
+### Changed
+
+* **Public links are no longer a finding.** A link without a password or an
+  expiry is the feature working as intended — a folder handed to somebody who
+  has no account and is not going to make one — and a page that complains about
+  it every week is a page nobody reads. The check now reports how the links are
+  being used instead of grading them, and the notice when one is created is off.
+  Both readings are still available for installations that want them, under
+  **Also treat a link with no password as a finding**.
+* The inventory shows each link's opens, downloads, refusals and how many
+  networks it was opened from, in place of the red "exposed" marking.
+
+### Added
+
+* **Link usage watching.** Opens, downloads and refused password attempts are
+  counted per link per day, along with how many distinct networks opened it.
+  Nothing is said until a link is opened from a real crowd *and* that crowd is
+  several times the link's own record — a link that has always been busy is
+  allowed to be busy. Repeated refused attempts against a link that does have a
+  password are reported separately.
+* **A watch for files changing very fast.** A sync client on a machine that has
+  caught ransomware uploads every encrypted file over the original; nothing was
+  breached and every password-and-permission check says the server is fine. The
+  rate is the only visible thing. Rewrites, deletes and renames onto a single new
+  extension are counted per account in the cache, and the response can be an
+  alarm or — if you ask for it — disabling the account and ending its sessions,
+  because a sync client holds a token and does not care that its owner has been
+  marked disabled.
+* **A self-probe.** Sentinel asks its own web server, as an anonymous visitor,
+  for the files that must never be served: the configuration with the database
+  password in it, the log, `.git` directories left by apps installed from source,
+  backup copies of config.php. Every other check reads the code; this is the only
+  one that finds out what the web server in front of it actually does.
+* **App enable, disable and update are reported.** Enabling an app is arbitrary
+  code running as the server with access to everybody's files, and nothing
+  anywhere says so out loud. Switching off one of the installation's defences —
+  Sentinel included — is an alarm.
+* **The settings that decide who the server trusts are watched.** Trusted
+  domains, trusted proxies, forwarded-for headers, the overwrite settings, the
+  data directory, the app store, session lifetimes and a dozen more. Only a
+  fingerprint of each value is stored, never the value.
+* **A certificate check**, because renewal is automatic until the day it is not,
+  and the certificate simply runs out on a Saturday.
+* `occ sentinel:check --probe`.
+
+[1.1.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+
 ## [1.0.0] — 2026-09-11
 
 The first release.
@@ -48,4 +100,4 @@ The first release.
   and leaving a list of every file on the server in the database of a server that
   removed the app two years ago would be a poor joke.
 
-[1.0.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/v1.0.0
+[1.0.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases

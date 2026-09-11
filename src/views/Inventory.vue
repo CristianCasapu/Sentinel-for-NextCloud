@@ -15,23 +15,40 @@
 			</button>
 		</div>
 
+		<div v-if="report && report.busy.length" class="inventory__busy">
+			<strong>{{ t('sentinel', 'Files changing right now') }}</strong>
+			<span v-for="row in report.busy" :key="row.uid + row.kind">
+				{{ row.kind === 'delete'
+					? t('sentinel', '{uid}: {n} deleted', { uid: row.uid, n: row.count })
+					: t('sentinel', '{uid}: {n} rewritten', { uid: row.uid, n: row.count }) }}
+			</span>
+		</div>
+
 		<div v-if="loading" class="inventory__loading">{{ t('sentinel', 'Looking…') }}</div>
 
 		<template v-else-if="report">
 			<section v-if="showing === 'links'">
 				<p class="inventory__intro">
-					{{ t('sentinel', 'Anyone holding one of these addresses can open what it points at. A link with no expiry outlives the reason it was made.') }}
+					{{ t('sentinel', 'A link is meant to be given away — that is the point of it. What is shown here is how each one is actually being used over the last 30 days, so that a link being opened by people it was never sent to stands out.') }}
 				</p>
 				<ul class="inventory__list">
-					<li v-for="link in report.links.links" :key="link.id" :class="{ 'inventory__row--open': link.exposed }">
+					<li v-for="link in report.links.links" :key="link.id" :class="{ 'inventory__row--busy': link.networks >= 25 }">
 						<span class="inventory__name" :title="link.target">{{ link.target || t('sentinel', '(deleted)') }}</span>
 						<span class="inventory__dim">{{ link.owner }}</span>
 						<span class="inventory__dim">{{ t('sentinel', 'made {when}', { when: ago(link.created) }) }}</span>
-						<span :class="link.hasPassword ? 'inventory__ok' : 'inventory__warn'">
+						<span class="inventory__dim">
 							{{ link.hasPassword ? t('sentinel', 'password') : t('sentinel', 'no password') }}
 						</span>
-						<span :class="link.expires ? 'inventory__ok' : 'inventory__warn'">
-							{{ link.expires ? t('sentinel', 'until {when}', { when: on(link.expires) }) : t('sentinel', 'never expires') }}
+						<span class="inventory__dim">
+							{{ link.expires ? t('sentinel', 'until {when}', { when: on(link.expires) }) : t('sentinel', 'no expiry') }}
+						</span>
+						<span :class="link.networks >= 25 ? 'inventory__warn' : 'inventory__use'">
+							{{ link.views + link.downloads === 0
+								? t('sentinel', 'unused')
+								: t('sentinel', '{n} opens from {networks} networks', { n: link.views + link.downloads, networks: link.networks }) }}
+						</span>
+						<span v-if="link.failures > 0" class="inventory__warn">
+							{{ t('sentinel', '{n} refused', { n: link.failures }) }}
 						</span>
 						<span class="inventory__does">
 							<NcButton v-if="!link.expires" :disabled="busy" @click="expire(link.id)">
@@ -184,8 +201,19 @@ onMounted(load)
 	border-bottom: 1px solid var(--color-border);
 }
 
-.inventory__row--open { background: var(--color-error-hover, transparent); }
-.inventory__row--open .inventory__dim { color: inherit; opacity: 0.8; }
+.inventory__row--busy { background: var(--color-warning-hover, transparent); }
+.inventory__row--busy .inventory__dim { color: inherit; opacity: 0.8; }
+.inventory__use { color: var(--color-text-maxcontrast); }
+
+.inventory__busy {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	padding: 10px 14px;
+	margin-bottom: 14px;
+	border-radius: var(--border-radius-large, 12px);
+	background: var(--color-warning-hover, var(--color-background-dark));
+}
 .inventory__name { font-weight: 600; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inventory__dim { color: var(--color-text-maxcontrast); }
 .inventory__ok { color: var(--color-success); }

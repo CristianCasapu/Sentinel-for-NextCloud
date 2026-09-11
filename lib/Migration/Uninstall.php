@@ -35,7 +35,7 @@ class Uninstall implements IRepairStep {
 	}
 
 	public function run(IOutput $output): void {
-		foreach (['sentinel_baseline', 'sentinel_events', 'sentinel_places'] as $table) {
+		foreach (['sentinel_baseline', 'sentinel_events', 'sentinel_places', 'sentinel_link_use'] as $table) {
 			try {
 				if ($this->db->tableExists($table)) {
 					$this->db->dropTable($table);

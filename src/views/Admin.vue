@@ -109,6 +109,47 @@ const groups = computed<Array<{ title: string, note: string, fields: Field[] }>>
 		],
 	},
 	{
+		title: t('sentinel', 'Public links'),
+		note: t('sentinel', 'A link without a password is a decision, not an oversight, so nothing here treats one as a fault. What is watched is how a link is used compared with how that same link is normally used.'),
+		fields: [
+			{ key: 'watch_links', kind: 'bool', label: t('sentinel', 'Watch how links are used'), hint: t('sentinel', 'Counts opens, downloads and refusals per link per day. No addresses of visitors are stored, only how many networks.') },
+			{ key: 'link_crowd', kind: 'int', label: t('sentinel', 'Say something above this many networks in a day'), hint: t('sentinel', 'Below this, nothing is ever said, however busy the link.') },
+			{ key: 'link_surge', kind: 'int', label: t('sentinel', 'And only if it is this many times its own record'), hint: t('sentinel', 'A link that has always been busy is allowed to be busy. Only one doing several times what it has ever done before is news.') },
+			{ key: 'link_failures', kind: 'int', label: t('sentinel', 'Refused password attempts in a day before saying so'), hint: t('sentinel', 'Somebody guessing at a link that does have a password.') },
+			{ key: 'judge_open_links', kind: 'bool', label: t('sentinel', 'Also treat a link with no password as a finding'), hint: t('sentinel', 'Off, because it is an opinion rather than a finding. On for installations where every link really is meant to have a password.') },
+		],
+	},
+	{
+		title: t('sentinel', 'Files changing very fast'),
+		note: t('sentinel', 'A sync client on a machine that catches ransomware uploads every encrypted file over the original, and every check that asks about passwords says the server is fine. The only visible thing is the rate.'),
+		fields: [
+			{ key: 'watch_churn', kind: 'bool', label: t('sentinel', 'Watch how fast files change'), hint: t('sentinel', 'One counter per account, in the cache. Files the server writes for itself — previews, avatars — are not counted.') },
+			{ key: 'churn_window', kind: 'int', label: t('sentinel', 'Over how long, in seconds'), hint: t('sentinel', 'The window the counting covers.') },
+			{ key: 'churn_writes', kind: 'int', label: t('sentinel', 'Files rewritten before acting'), hint: t('sentinel', 'No person rewrites hundreds of files by hand in a few minutes.') },
+			{ key: 'churn_deletes', kind: 'int', label: t('sentinel', 'Files deleted before acting'), hint: t('sentinel', 'Deleting is the more frightening of the two, so the number is lower.') },
+			{ key: 'churn_renames', kind: 'int', label: t('sentinel', 'Files renamed to one new extension before acting'), hint: t('sentinel', 'Ransomware renames what it encrypts, and renames it all to the same thing.') },
+			{
+				key: 'churn_response',
+				kind: 'enum',
+				label: t('sentinel', 'And then'),
+				hint: t('sentinel', 'Disabling the account also ends its sessions, because a sync client holds a token and does not care that its owner was marked disabled. It will also stop somebody restoring a large backup into their folder — that is the price of a switch that acts without asking.'),
+				choices: [
+					{ value: 'tell', label: t('sentinel', 'Raise an alarm') },
+					{ value: 'lock', label: t('sentinel', 'Disable the account and end its sessions') },
+				],
+			},
+		],
+	},
+	{
+		title: t('sentinel', 'Asking the server what it serves'),
+		note: t('sentinel', 'Every other check here reads the code. This one is an ordinary anonymous visitor asking the web server for the files that must never be handed out — which is the only way to find out what a changed rewrite rule or a copied virtual host actually does.'),
+		fields: [
+			{ key: 'probe_enabled', kind: 'bool', label: t('sentinel', 'Ask this server for files it should refuse'), hint: t('sentinel', 'A few dozen requests to its own address, a few times a day.') },
+			{ key: 'probe_extra', kind: 'string', label: t('sentinel', 'Also ask for'), hint: t('sentinel', 'Comma separated paths, for anything particular to this installation.') },
+			{ key: 'certificate_warn_days', kind: 'int', label: t('sentinel', 'Warn this many days before the certificate expires'), hint: t('sentinel', 'Renewal is automatic until the day it is not, and nothing tells you it has stopped.') },
+		],
+	},
+	{
 		title: t('sentinel', 'What counts as too old'),
 		note: t('sentinel', 'These are judgements about this particular server. A machine used by one person and one used by forty do not have the same answers.'),
 		fields: [

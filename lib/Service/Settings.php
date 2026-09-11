@@ -54,6 +54,30 @@ class Settings {
 		'place_alert' => [true, 'bool'],
 		'place_granularity' => [24, 'int', 8, 32],
 
+		// Public links
+		//
+		// An open link is a decision, not an oversight, so nothing here judges
+		// one for existing. What is watched is how a link is used compared with
+		// how that same link is normally used.
+		'watch_links' => [true, 'bool'],
+		'link_crowd' => [25, 'int', 3, 100000],
+		'link_surge' => [5, 'int', 2, 1000],
+		'link_failures' => [20, 'int', 3, 100000],
+		'judge_open_links' => [false, 'bool'],
+
+		// Files changing very fast
+		'watch_churn' => [true, 'bool'],
+		'churn_window' => [300, 'int', 60, 86400],
+		'churn_writes' => [500, 'int', 20, 1000000],
+		'churn_deletes' => [200, 'int', 10, 1000000],
+		'churn_renames' => [200, 'int', 10, 1000000],
+		'churn_response' => ['tell', 'enum:tell,lock'],
+
+		// Checking the server from outside itself
+		'probe_enabled' => [true, 'bool'],
+		'probe_extra' => ['', 'string'],
+		'certificate_warn_days' => [14, 'int', 1, 365],
+
 		// Posture
 		'require_two_factor_admins' => [true, 'bool'],
 		'ignore_uids' => ['', 'string'],
@@ -135,6 +159,71 @@ class Settings {
 
 	public function placeGranularity(): int {
 		return (int)$this->get('place_granularity');
+	}
+
+	public function watchLinks(): bool {
+		return (bool)$this->get('watch_links');
+	}
+
+	public function linkCrowd(): int {
+		return (int)$this->get('link_crowd');
+	}
+
+	public function linkSurge(): int {
+		return (int)$this->get('link_surge');
+	}
+
+	public function linkFailures(): int {
+		return (int)$this->get('link_failures');
+	}
+
+	/**
+	 * Whether an open link should be treated as a finding at all.
+	 *
+	 * Off, because it is not one. A public link without a password is the
+	 * feature working: a folder handed to somebody who has no account and is
+	 * not going to make one. Anyone who wants the older, sterner reading can
+	 * have it back with one switch.
+	 */
+	public function judgeOpenLinks(): bool {
+		return (bool)$this->get('judge_open_links');
+	}
+
+	public function watchChurn(): bool {
+		return (bool)$this->get('watch_churn');
+	}
+
+	public function churnWindow(): int {
+		return (int)$this->get('churn_window');
+	}
+
+	public function churnWrites(): int {
+		return (int)$this->get('churn_writes');
+	}
+
+	public function churnDeletes(): int {
+		return (int)$this->get('churn_deletes');
+	}
+
+	public function churnRenames(): int {
+		return (int)$this->get('churn_renames');
+	}
+
+	public function churnResponse(): string {
+		return (string)$this->get('churn_response');
+	}
+
+	public function probeEnabled(): bool {
+		return (bool)$this->get('probe_enabled');
+	}
+
+	/** @return string[] */
+	public function probeExtra(): array {
+		return $this->list('probe_extra');
+	}
+
+	public function certificateWarnDays(): int {
+		return (int)$this->get('certificate_warn_days');
 	}
 
 	/** @return string[] */
