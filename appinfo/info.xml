@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>sentinel</id>
+    <name>Sentinel</name>
+    <summary>Watches the things Nextcloud's own defences do not watch, and tells you when they change</summary>
+    <summary lang="ro">Veghează asupra lucrurilor pe care apărarea proprie a Nextcloud nu le urmărește, și te anunță când se schimbă</summary>
+    <description><![CDATA[
+Nextcloud defends itself well. It throttles password guessing, hashes passwords properly,
+sets the right headers, offers two-factor authentication, and checks that its own files have
+not been altered. Sentinel does not repeat any of that.
+
+What it does is answer the questions nobody asks until it is too late. Who has two-factor
+authentication and who does not. Which public links have no password and no expiry, and have
+been sitting there for months. Which application passwords were last used in February and are
+still valid. Whether a file in the installation changed, and whether that change was expected.
+And when any of it changes, who is told.
+
+* **A posture page** that checks what core does not, with the reason and the fix beside each finding
+* **A file baseline you can acknowledge**, so a deliberate patch stops raising an alarm and a
+  real change is the only thing that does
+* **Watchers** that notice an account becoming an administrator, two-factor being switched off, a
+  new application password, or a public link created without a password, and say so
+* **An inventory** of public links, sessions and application passwords, with the age of each and
+  a way to end them
+* Every finding explains what it means and what happens if it is ignored, because a warning
+  nobody understands is a warning nobody acts on
+
+Sentinel changes nothing on its own. It reports, and it acts only when asked.
+    ]]></description>
+    <version>1.0.0</version>
+    <licence>agpl</licence>
+    <author mail="casapucristian@gmail.com">Cristian Casapu</author>
+    <namespace>Sentinel</namespace>
+    <category>security</category>
+    <category>monitoring</category>
+    <website>https://github.com/CristianCasapu/Sentinel-for-NextCloud</website>
+    <bugs>https://github.com/CristianCasapu/Sentinel-for-NextCloud/issues</bugs>
+    <repository type="git">https://github.com/CristianCasapu/Sentinel-for-NextCloud.git</repository>
+    <dependencies>
+        <php min-version="8.4"/>
+        <nextcloud min-version="34" max-version="34"/>
+    </dependencies>
+    <background-jobs>
+        <job>OCA\Sentinel\BackgroundJob\WatchJob</job>
+    </background-jobs>
+    <repair-steps>
+        <uninstall>
+            <step>OCA\Sentinel\Migration\Uninstall</step>
+        </uninstall>
+    </repair-steps>
+    <commands>
+        <command>OCA\Sentinel\Command\Check</command>
+        <command>OCA\Sentinel\Command\Baseline</command>
+    </commands>
+    <settings>
+        <admin>OCA\Sentinel\Settings\Admin</admin>
+        <admin-section>OCA\Sentinel\Settings\AdminSection</admin-section>
+    </settings>
+</info>

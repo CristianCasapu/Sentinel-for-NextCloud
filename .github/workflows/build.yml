@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Fail if the build produced nothing
+        # A build tool that no longer understands its configuration does not
+        # always say so: it can finish happily and write an empty bundle, which
+        # installs perfectly and then does nothing at all. Size is the only
+        # thing that catches that.
+        run: |
+          for bundle in js/sentinel-main.mjs js/sentinel-admin.mjs; do
+            size=$(stat -c%s "$bundle" 2>/dev/null || echo 0)
+            echo "$bundle is $size bytes"
+            if [ "$size" -lt 4096 ]; then
+              echo "::error::$bundle is $size bytes, which means the build produced nothing usable"
+              exit 1
+            fi
+          done
+      - name: Fail if the built files were not committed
+        run: git diff --exit-code -- js/
+
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The app asks for PHP 8.4, so that is what it is checked against.
+        # Nothing here is written for anything older on purpose.
+        php: ['8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Check every file parses
+        run: find lib appinfo templates -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Check the declared minimum matches what is asked for
+        run: |
+          declared=$(grep -oP '<php min-version="\K[^"]+' appinfo/info.xml)
+          if [ "$declared" != "${{ matrix.php }}" ]; then
+            echo "info.xml asks for PHP $declared but this job runs ${{ matrix.php }}"
+            exit 1
+          fi
+
+  translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every translation file is valid JSON with a plural rule
+        run: |
+          for file in l10n/*.json; do
+            python3 -c "
+          import json, sys
+          d = json.load(open('$file'))
+          assert 'translations' in d, '$file has no translations'
+          assert 'pluralForm' in d, '$file has no pluralForm'
+          print('$file:', len(d['translations']), 'strings')
+          "
+          done

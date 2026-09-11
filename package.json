@@ -1,0 +1,40 @@
+{
+  "name": "sentinel",
+  "version": "1.0.0",
+  "description": "Watches the things Nextcloud's own defences do not watch, and tells you when they change",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build": "vite --mode production build",
+    "dev": "vite --mode development build",
+    "watch": "vite --mode development build --watch",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@nextcloud/axios": "^2.6.0",
+    "@nextcloud/dialogs": "^7.5.0",
+    "@nextcloud/initial-state": "^3.0.0",
+    "@nextcloud/l10n": "^3.4.1",
+    "@nextcloud/router": "^3.1.0",
+    "@nextcloud/vue": "^9.11.0",
+    "vue": "^3.5.0",
+    "vue-material-design-icons": "^5.3.1"
+  },
+  "devDependencies": {
+    "@mdi/svg": "^7.4.47",
+    "@nextcloud/browserslist-config": "^3.1.2",
+    "@nextcloud/vite-config": "^2.5.4",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": "^22 || ^24",
+    "npm": "^10 || ^11"
+  },
+  "browserslist": [
+    "extends @nextcloud/browserslist-config"
+  ]
+}
