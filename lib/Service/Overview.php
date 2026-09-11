@@ -33,6 +33,8 @@ class Overview {
 		private LinkWatch $links,
 		private ChangeWatch $changes,
 		private Messenger $messenger,
+		private Edr $edr,
+		private Clam $clam,
 		private EventMapper $events,
 		private Settings $settings,
 	) {
@@ -105,6 +107,10 @@ class Overview {
 			],
 
 			'busy' => $this->changes->busy(),
+			'outside' => [
+				'edr' => $this->edr->state(),
+				'clam' => $this->clam->state(),
+			],
 		];
 	}
 
@@ -113,6 +119,8 @@ class Overview {
 	 */
 	private function watchers(): array {
 		$on = $this->settings->watchEnabled();
+		$edr = $this->edr->state();
+		$clam = $this->clam->available();
 		return [
 			$this->watcher('signins', 'Sign-ins from somewhere new', $on && $this->settings->placeAlert(),
 				'An account appearing on a network it has never used, which for an administrator with only a password is the shape of a compromise.'),
@@ -132,6 +140,12 @@ class Overview {
 				'A link opened by a crowd several times larger than that link\'s own record.'),
 			$this->watcher('exposure', 'What the web server hands out', $on && $this->settings->probeEnabled(),
 				'Asking this server, as an anonymous visitor, for the files it must never serve.'),
+			$this->watcher('processes', 'Which program is writing', (bool)($edr['alive'] ?? false),
+				'A daemon outside Nextcloud, using fanotify, so that a sync client uploading encrypted files '
+				. 'can be told apart from something on this server writing into the data directory.'),
+			$this->watcher('scanner', 'A scanner to ask', $clam,
+				'ClamAV, asked about the handful of files that already look wrong and about the binary of '
+				. 'anything writing where it should not be.'),
 		];
 	}
 

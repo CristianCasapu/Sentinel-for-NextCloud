@@ -66,6 +66,21 @@ class ChangeListener implements IEventListener {
 			return;
 		}
 
-		$this->changes->touched($uid, $kind, $node->getName());
+		// The reader is handed over rather than called: the watcher only spends
+		// a read once the rate is already halfway to being interesting, and on
+		// an ordinary day it never opens a single file.
+		$this->changes->touched($uid, $kind, $node->getName(), $kind === 'write'
+			? static function () use ($node): string {
+				$handle = $node->fopen('rb');
+				if (!is_resource($handle)) {
+					return '';
+				}
+				try {
+					return (string)fread($handle, 64);
+				} finally {
+					fclose($handle);
+				}
+			}
+			: null);
 	}
 }

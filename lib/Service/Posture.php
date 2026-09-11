@@ -45,6 +45,8 @@ class Posture {
 		private Baseline $baseline,
 		private Exposure $exposure,
 		private LinkWatch $links,
+		private Edr $edr,
+		private Clam $clam,
 		private Settings $settings,
 	) {
 	}
@@ -64,6 +66,8 @@ class Posture {
 			$this->whatIsServed(),
 			$this->certificate(),
 			$this->ransomwareWatch(),
+			$this->processWatch(),
+			$this->virusScanner(),
 			$this->watchfulness(),
 			$this->passwordRules(),
 		];
@@ -579,22 +583,170 @@ class Posture {
 			$on
 				? 'Watching. More than ' . $this->settings->churnWrites() . ' files rewritten or '
 					. $this->settings->churnDeletes() . ' deleted by one account in ' . $minutes . ' minutes '
-					. ($response === 'lock' ? 'disables the account and ends its sessions.' : 'raises an alarm.')
+					. ($this->settings->churnRequireEvidence()
+						? 'starts looking at the files themselves, and only something wrong with those '
+							. ($response === 'lock' ? 'disables the account and ends its sessions.' : 'raises an alarm.')
+						: 'is enough on its own to ' . ($response === 'lock' ? 'disable the account.' : 'raise an alarm.'))
 				: 'Not watching.',
 			'A sync client on a machine that catches ransomware does exactly what it is built to do: it '
 			. 'uploads every encrypted file over the original. No password was wrong, no permission was '
 			. 'exceeded, and every check that asks about passwords and permissions says the server is fine. '
-			. 'The only visible thing is the rate — hundreds of files rewritten in minutes, which no person '
-			. 'does by hand.',
+			. 'Rate is how you notice it — but rate is not how you decide, because a phone finishing its '
+			. 'first backup looks exactly the same. What decides is the files: no legitimate client ever '
+			. 'rewrites a .jpg so that it stops being a JPEG, and ransomware does it to every file it '
+			. 'touches.',
 			$on
 				? ($response === 'lock'
-					? 'Nothing. Bear in mind it will also stop somebody restoring a large backup into their '
-					. 'folder, which is the price of a switch that acts without asking.'
+					? 'Nothing.'
 					: 'Consider setting the response to disable the account rather than only report it. '
 					. 'Minutes matter here, and nobody reads a notification at three in the morning.')
 				: 'Turn it on under Administration → Sentinel.',
-			['watching' => $on, 'response' => $response, 'windowSeconds' => $this->settings->churnWindow()],
+			[
+				'watching' => $on,
+				'response' => $response,
+				'windowSeconds' => $this->settings->churnWindow(),
+				'requiresEvidence' => $this->settings->churnRequireEvidence(),
+			],
 		);
+	}
+
+	/**
+	 * Whether anything can see which program is writing the files.
+	 *
+	 * Nextcloud knows a file changed and whose account it belongs to. It cannot
+	 * know which process did it, and that is the difference between the two
+	 * things that look identical from in here: a sync client faithfully
+	 * uploading what ransomware did on somebody's laptop, and something on this
+	 * server writing straight into the data directory. The first is a stolen
+	 * laptop. The second is a stolen server.
+	 */
+	private function processWatch(): array {
+		$state = $this->edr->state();
+
+		if (!$state['expected']) {
+			return $this->finding(
+				'edr',
+				'Which program is writing',
+				self::NOTE,
+				'Not expected to be installed.',
+				'Without it, a burst of writing can be measured but not attributed. Both of the things '
+				. 'that produce one look the same from inside Nextcloud.',
+				'If you want it, the daemon ships with this app under edr/ and installs with one script.',
+				$state,
+			);
+		}
+
+		if (!$state['installed']) {
+			return $this->finding(
+				'edr',
+				'Which program is writing',
+				self::WARN,
+				'Not installed.',
+				'Nextcloud sees files changing and knows whose account they belong to. It cannot see which '
+				. 'process changed them — and a sync client uploading encrypted files is a different '
+				. 'emergency from something on this server writing into the data directory itself.',
+				'Install the daemon that ships with this app: edr/install.sh, then systemctl enable --now '
+				. 'sentinel-edr. It needs root for fanotify and nothing else.',
+				$state,
+			);
+		}
+
+		if (!$state['alive']) {
+			return $this->finding(
+				'edr',
+				'Which program is writing',
+				self::BAD,
+				'Installed, but it has said nothing since ' . ($state['lastBeat'] > 0 ? date('j M H:i', (int)$state['lastBeat']) : 'ever') . '.',
+				'A watcher that has stopped looks exactly like a quiet day. That is the whole problem with '
+				. 'watchers, and the reason this check exists.',
+				'systemctl status sentinel-edr, and journalctl -u sentinel-edr.',
+				$state,
+			);
+		}
+
+		return $this->finding(
+			'edr',
+			'Which program is writing',
+			self::GOOD,
+			'Watching, by ' . ($state['method'] ?: 'fanotify') . ' mark, last heard from ' . $this->when((int)$state['lastBeat']) . '.',
+			'Every completed write into the data directory arrives with the process that made it. Almost '
+			. 'all of them are discarded immediately; what survives is counted, sometimes sampled, and '
+			. 'occasionally judged.',
+			'Nothing. Bear in mind it never stops the web server, whatever it finds: doing so would stop '
+			. 'Nextcloud for everybody, and the thing to stop in that case is the session, not the server.',
+			$state,
+		);
+	}
+
+	/**
+	 * Whether there is a scanner to ask when something already looks wrong.
+	 */
+	private function virusScanner(): array {
+		$state = $this->clam->state();
+
+		if (!($state['enabled'] ?? false)) {
+			return $this->finding(
+				'clam',
+				'A scanner to ask',
+				self::NOTE,
+				'Switched off.',
+				'Sentinel does not scan everything that arrives — that is a different job with a different '
+				. 'cost, and Nextcloud has an app for it. It asks about the handful of files that already '
+				. 'look wrong for another reason.',
+				'Turn it on under Administration → Sentinel, once clamd is running.',
+				$state,
+			);
+		}
+
+		if (!($state['reachable'] ?? false)) {
+			return $this->finding(
+				'clam',
+				'A scanner to ask',
+				self::NOTE,
+				'Nothing answering at ' . (string)($state['socket'] ?? '?') . ': ' . (string)($state['reason'] ?? 'unknown') . '.',
+				'When a burst of writing produces files that are no longer what their names say, the next '
+				. 'question is whether anything recognises them. Without a scanner there is no answer, only '
+				. 'the inference.',
+				'Install ClamAV and its daemon — on Debian, apt install clamav-daemon — and point the socket '
+				. 'setting at it. clamd, not clamscan: clamscan reloads the whole signature database for '
+				. 'every single file.',
+				$state,
+			);
+		}
+
+		$age = $state['signatureAgeDays'];
+		$stale = is_int($age) && $age > 7;
+
+		return $this->finding(
+			'clam',
+			'A scanner to ask',
+			$stale ? self::WARN : self::GOOD,
+			$stale
+				? (string)$state['version'] . ', but its signatures are ' . $age . ' days old.'
+				: (string)$state['version'] . ', ' . number_format((int)$state['signatures']) . ' signatures'
+					. (is_int($age) ? ', ' . ($age <= 0 ? 'updated today' : $age . ' days old') : '') . '.',
+			'A scanner running on last year\'s signatures is worse than none, because it answers "clean" '
+			. 'with exactly the same confidence either way.',
+			$stale
+				? 'Check that freshclam is running: systemctl status clamav-freshclam.'
+				: 'Nothing. It is asked about files that already look wrong, and about the binary of any '
+				. 'program writing where it should not be.',
+			$state,
+		);
+	}
+
+	private function when(int $timestamp): string {
+		if ($timestamp <= 0) {
+			return 'never';
+		}
+		$ago = time() - $timestamp;
+		if ($ago < 120) {
+			return 'a moment ago';
+		}
+		if ($ago < 7200) {
+			return (int)round($ago / 60) . ' minutes ago';
+		}
+		return date('j M H:i', $timestamp);
 	}
 
 	/**

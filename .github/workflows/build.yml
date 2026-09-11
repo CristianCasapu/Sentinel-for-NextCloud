@@ -75,6 +75,93 @@ jobs:
             exit 1
           fi
 
+  edr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check every module compiles
+        run: python3 -m compileall -q edr/sentinel_edr
+      - name: Check the scoring, which is the part allowed to stop processes
+        # The rule that must never break: rate alone must never be enough to
+        # act. An ordinary busy day and an encryptor look identical if all you
+        # count is files per minute.
+        run: |
+          python3 - <<'PY'
+          import sys, time
+          sys.path.insert(0, "edr")
+          from sentinel_edr.verdict import Account, Write, judge
+
+          def account(n, mismatch=0, checked=0, notes=0, strangers=0, hits=0):
+              a = Account(uid="x", window=300.0)
+              now = time.time()
+              for i in range(n):
+                  m = (i < mismatch) if i < checked else None
+                  a.record(Write(at=now, mismatch=m, note=(i < notes), pid=(999 if i < strangers else 100),
+                                 expected=(i >= strangers)))
+              a.scanner_hits = ["x: Eicar"] * hits
+              return a
+
+          def verdict(a):
+              return judge(a, rate_floor=400, mismatch_floor=5, mismatch_ratio=50, stranger_floor=20)
+
+          failures = 0
+
+          ordinary = [
+              ("a phone finishing its backup", account(900, checked=120)),
+              ("a photo library being moved", account(2000)),
+              ("a few genuinely mislabelled files", account(900, mismatch=4, checked=120)),
+          ]
+          for label, a in ordinary:
+              if verdict(a).act:
+                  print(f"FAILED: acted on {label}")
+                  failures += 1
+
+          attacks = [
+              ("fast, and the files are wrong", account(900, mismatch=100, checked=120)),
+              ("slow, but the files are wrong", account(150, mismatch=60, checked=70)),
+              ("a ransom note during a busy hour", account(900, notes=1, checked=100)),
+              ("a known-malware binary writing", account(60, strangers=60, hits=1)),
+          ]
+          for label, a in attacks:
+              if not verdict(a).act:
+                  print(f"FAILED: missed ransomware ({label})")
+                  failures += 1
+
+          # Server-side encryption must never be read as an attack.
+          from sentinel_edr import kinds
+          if kinds.matches("holiday.jpg", b"HBEGIN:oc_encryption_module:OC_DEFAULT_MODULE") is not None:
+              print("FAILED: Nextcloud's own encryption counted as evidence")
+              failures += 1
+
+          print("checks failed:", failures)
+          sys.exit(1 if failures else 0)
+          PY
+
+      - name: Check the magic table has not drifted from the PHP one
+        # The two sides must agree about what a JPEG looks like, or the daemon
+        # and the app will reach different conclusions about the same file.
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          sys.path.insert(0, "edr")
+          from sentinel_edr.kinds import MAGIC
+
+          php = open("lib/Service/FileKinds.php").read()
+          block = php.split("private const MAGIC = [", 1)[1].split("\n\t];", 1)[0]
+          php_kinds = set(re.findall(r"'([a-z0-9]+)' => \[\[", block))
+          missing = php_kinds - set(MAGIC)
+          extra = set(MAGIC) - php_kinds
+          if missing or extra:
+              print("the two magic tables disagree")
+              print("  only in PHP:", sorted(missing))
+              print("  only in Python:", sorted(extra))
+              sys.exit(1)
+          print(f"both tables know the same {len(php_kinds)} kinds")
+          PY
+
   translations:
     runs-on: ubuntu-latest
     steps:

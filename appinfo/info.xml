@@ -35,7 +35,7 @@ What is watched is how a link is used compared with how that same link is normal
 
 Sentinel changes nothing on its own unless you ask it to. It reports, and it acts only when told.
     ]]></description>
-    <version>1.2.1</version>
+    <version>1.3.0</version>
     <licence>agpl</licence>
     <author mail="casapucristian@gmail.com">Cristian Casapu</author>
     <namespace>Sentinel</namespace>
@@ -60,6 +60,7 @@ Sentinel changes nothing on its own unless you ask it to. It reports, and it act
     <commands>
         <command>OCA\Sentinel\Command\Check</command>
         <command>OCA\Sentinel\Command\Baseline</command>
+        <command>OCA\Sentinel\Command\Respond</command>
     </commands>
     <settings>
         <admin>OCA\Sentinel\Settings\Admin</admin>

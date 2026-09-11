@@ -5,6 +5,56 @@ All notable changes to Sentinel are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-09-12
+
+Speed stops being an accusation, and something outside Nextcloud finally answers
+the question Nextcloud cannot: *which program is doing this?*
+
+### Changed
+
+* **The fast-files watch no longer acts on rate alone.** It was too eager, and
+  it was right to be complained about: a phone finishing its first backup and a
+  folder being encrypted are identical if all you count is files per minute.
+  Crossing the rate now only opens the question. What answers it is the files
+  themselves — a run of files that are no longer the kind of file their own name
+  claims, a ransom note, a wave of renames onto one new extension. Rate with no
+  evidence is a note in the journal, once a day, and nothing else happens.
+* Files are only opened once an account is halfway to the threshold, and then
+  only one in every few, so an ordinary day costs nothing.
+* Nextcloud's own server-side encryption is recognised and never counts as
+  evidence against anybody.
+
+### Added
+
+* **Sentinel EDR** (`edr/`) — a small Python daemon, one systemd unit, that uses
+  fanotify to attach a process to every completed write in the data directory.
+  That is the difference between a sync client uploading what ransomware did on
+  somebody's laptop and something on this server writing into the files itself.
+  It scores several independent signals and acts only at five points, where rate
+  is worth one; see `edr/README.md` for the table and the reasoning.
+  * It **suspends** rather than kills — frozen where it stood, nothing lost, a
+    person decides — and it **never touches php-fpm**, because stopping that
+    stops Nextcloud for everybody.
+  * When the writing came through the web stack there is no process worth
+    stopping, so it asks Nextcloud to end that account's sessions, through `occ`,
+    having dropped to the account that owns the installation. Deliberately not
+    `sudo`.
+  * If that call fails, the request travels in the report and Nextcloud carries
+    it out itself. A response that silently did not happen is worse than one
+    that was never designed.
+  * It talks to Nextcloud through a directory of JSON files. No socket, no port,
+    no credential stored anywhere.
+* **ClamAV**, asked only about files that already look wrong for another reason,
+  and about the binary of any program writing where it should not be. Through
+  clamd's socket, not clamscan.
+* Two new posture checks: **which program is writing** (installed? alive? — a
+  watcher that has stopped looks exactly like a quiet day) and **a scanner to
+  ask** (reachable? and are its signatures fresh — a scanner on last year's
+  signatures answers "clean" with the same confidence either way).
+* `occ sentinel:respond --uid <account> [--disable]`.
+
+[1.3.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+
 ## [1.2.1] — 2026-09-11
 
 ### Fixed
@@ -34,7 +84,7 @@ the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   second factor is in the way — which is worth knowing long before whoever has
   it finds a way past.
 
-[1.2.1]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+[1.2.1]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases
 
 ## [1.2.0] — 2026-09-11
 

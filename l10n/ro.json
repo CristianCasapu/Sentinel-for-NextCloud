@@ -289,7 +289,31 @@
             "Și încă %n.",
             "Și încă %n.",
             "Și încă %n."
-        ]
+        ],
+        "Require evidence, not just speed": "Cere dovezi, nu doar viteză",
+        "On, and it should stay on. Five hundred files in five minutes is a phone finishing its first backup as often as it is an encryptor. What decides is the files themselves: no legitimate client rewrites a .jpg so that it stops being a JPEG.": "Pornit, și așa trebuie să rămână. Cinci sute de fișiere în cinci minute înseamnă la fel de des un telefon care își termină prima copie de siguranță ca un program care criptează. Decizia o dau fișierele: niciun client legitim nu rescrie un .jpg astfel încât să înceteze să mai fie un JPEG.",
+        "Once suspicious, open one file in every": "Odată suspect, deschide un fișier din fiecare",
+        "Nothing is read at all until the rate is halfway to the threshold above.": "Nu se citește absolut nimic până când ritmul nu ajunge la jumătatea pragului de mai sus.",
+        "Wrong files before that counts": "Fișiere greșite până când asta contează",
+        "A handful of genuinely mislabelled files is not an attack.": "Câteva fișiere chiar etichetate greșit nu înseamnă un atac.",
+        "And what share of those checked, as a percentage": "Și ce parte din cele verificate, în procente",
+        "A run of wrong files one after another counts on its own, however the whole window averages out.": "O serie de fișiere greșite unul după altul contează de una singură, oricât ar ieși media pe toată fereastra.",
+        "Which program is writing": "Ce program scrie",
+        "Nextcloud sees files changing and knows whose account they belong to. It cannot see which process changed them — and a sync client uploading what ransomware did on somebody's laptop is a different emergency from something on this server writing into the data directory. A small daemon outside answers that; it ships with this app under edr/.": "Nextcloud vede fișiere schimbându-se și știe cărui cont îi aparțin. Nu poate vedea ce proces le-a schimbat — iar un client de sincronizare care urcă ce a făcut ransomware-ul pe laptopul cuiva este o urgență diferită de ceva de pe acest server care scrie direct în directorul de date. Un demon mic din exterior răspunde la asta; vine cu această aplicație, în edr/.",
+        "Expect the process watcher to be installed": "Așteaptă-te ca supraveghetorul de procese să fie instalat",
+        "With this on, its absence or silence is reported. Turn it off if you have decided not to run it.": "Cu asta pornită, absența sau tăcerea lui sunt raportate. Oprește-o dacă ai decis să nu îl rulezi.",
+        "Where it leaves its reports": "Unde își lasă rapoartele",
+        "A directory it writes and Nextcloud only reads. No socket, no port, no credential on disk.": "Un director în care el scrie și pe care Nextcloud doar îl citește. Fără socket, fără port, fără nicio parolă pe disc.",
+        "A scanner to ask": "Un scaner de întrebat",
+        "Not a scanner for everything that arrives — that is a different job with a different cost, and Nextcloud has an app for it. This is asked about the handful of files that already look wrong for another reason.": "Nu un scaner pentru tot ce sosește — aceea este altă treabă, cu alt cost, și Nextcloud are o aplicație pentru ea. Acesta este întrebat despre puținele fișiere care arată deja greșit din alt motiv.",
+        "Ask ClamAV when something looks wrong": "Întreabă ClamAV când ceva arată greșit",
+        "Through clamd's socket. Not clamscan, which reloads the whole signature database for every single file.": "Prin socketul clamd. Nu clamscan, care reîncarcă toată baza de semnături pentru fiecare fișier în parte.",
+        "Its socket": "Socketul lui",
+        "A path for a unix socket, or host:port.": "O cale pentru un socket unix, sau gazdă:port.",
+        "Scan at most, in bytes": "Scanează cel mult, în octeți",
+        "Past this, only the beginning of a file is sent.": "Peste asta, se trimite doar începutul fișierului.",
+        "How many files to scan per suspicion": "Câte fișiere de scanat la o suspiciune",
+        "Enough to be sure, few enough to be quick.": "Destule cât să fii sigur, puține cât să fie rapid."
     },
     "pluralForm": "nplurals=3; plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?2:1));"
 }

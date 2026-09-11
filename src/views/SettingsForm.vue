@@ -124,6 +124,10 @@ const groups = computed<Array<{ title: string, note: string, fields: Field[] }>>
 			{ key: 'churn_writes', kind: 'int', label: t('sentinel', 'Files rewritten before acting'), hint: t('sentinel', 'No person rewrites hundreds of files by hand in a few minutes.') },
 			{ key: 'churn_deletes', kind: 'int', label: t('sentinel', 'Files deleted before acting'), hint: t('sentinel', 'Deleting is the more frightening of the two, so the number is lower.') },
 			{ key: 'churn_renames', kind: 'int', label: t('sentinel', 'Files renamed to one new extension before acting'), hint: t('sentinel', 'Ransomware renames what it encrypts, and renames it all to the same thing.') },
+			{ key: 'churn_require_evidence', kind: 'bool', label: t('sentinel', 'Require evidence, not just speed'), hint: t('sentinel', 'On, and it should stay on. Five hundred files in five minutes is a phone finishing its first backup as often as it is an encryptor. What decides is the files themselves: no legitimate client rewrites a .jpg so that it stops being a JPEG.') },
+			{ key: 'churn_sample_every', kind: 'int', label: t('sentinel', 'Once suspicious, open one file in every'), hint: t('sentinel', 'Nothing is read at all until the rate is halfway to the threshold above.') },
+			{ key: 'churn_mismatch_floor', kind: 'int', label: t('sentinel', 'Wrong files before that counts'), hint: t('sentinel', 'A handful of genuinely mislabelled files is not an attack.') },
+			{ key: 'churn_mismatch_ratio', kind: 'int', label: t('sentinel', 'And what share of those checked, as a percentage'), hint: t('sentinel', 'A run of wrong files one after another counts on its own, however the whole window averages out.') },
 			{
 				key: 'churn_response',
 				kind: 'enum',
@@ -134,6 +138,24 @@ const groups = computed<Array<{ title: string, note: string, fields: Field[] }>>
 					{ value: 'lock', label: t('sentinel', 'Disable the account and end its sessions') },
 				],
 			},
+		],
+	},
+	{
+		title: t('sentinel', 'Which program is writing'),
+		note: t('sentinel', 'Nextcloud sees files changing and knows whose account they belong to. It cannot see which process changed them — and a sync client uploading what ransomware did on somebody\'s laptop is a different emergency from something on this server writing into the data directory. A small daemon outside answers that; it ships with this app under edr/.'),
+		fields: [
+			{ key: 'edr_expected', kind: 'bool', label: t('sentinel', 'Expect the process watcher to be installed'), hint: t('sentinel', 'With this on, its absence or silence is reported. Turn it off if you have decided not to run it.') },
+			{ key: 'edr_spool', kind: 'string', label: t('sentinel', 'Where it leaves its reports'), hint: t('sentinel', 'A directory it writes and Nextcloud only reads. No socket, no port, no credential on disk.') },
+		],
+	},
+	{
+		title: t('sentinel', 'A scanner to ask'),
+		note: t('sentinel', 'Not a scanner for everything that arrives — that is a different job with a different cost, and Nextcloud has an app for it. This is asked about the handful of files that already look wrong for another reason.'),
+		fields: [
+			{ key: 'clam_enabled', kind: 'bool', label: t('sentinel', 'Ask ClamAV when something looks wrong'), hint: t('sentinel', 'Through clamd\'s socket. Not clamscan, which reloads the whole signature database for every single file.') },
+			{ key: 'clam_socket', kind: 'string', label: t('sentinel', 'Its socket'), hint: t('sentinel', 'A path for a unix socket, or host:port.') },
+			{ key: 'clam_max_bytes', kind: 'int', label: t('sentinel', 'Scan at most, in bytes'), hint: t('sentinel', 'Past this, only the beginning of a file is sent.') },
+			{ key: 'clam_sample', kind: 'int', label: t('sentinel', 'How many files to scan per suspicion'), hint: t('sentinel', 'Enough to be sure, few enough to be quick.') },
 		],
 	},
 	{

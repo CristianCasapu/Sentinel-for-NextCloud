@@ -74,10 +74,39 @@ password being wrong.** A laptop with a sync client catches ransomware; the
 ransomware encrypts the synced folder; the client does exactly what it is built
 to do and uploads every encrypted file over the original. Nothing was breached,
 no permission was exceeded, and every check that asks about passwords says the
-server is fine. The only visible thing is the rate — hundreds of files rewritten
-in minutes, which no person does by hand. Sentinel counts that, and can be told
-to disable the account and end its sessions by itself. That last part is off
-until you ask for it.
+server is fine.
+
+Rate is how you notice that. Rate is *not* how you decide: five hundred files in
+five minutes is a phone finishing its first backup at least as often as it is an
+encryptor, and an alarm that fires on the first is one nobody believes when it
+fires on the second. So the rate only opens the question, and the files answer
+it — no legitimate client rewrites a `.jpg` so that it stops being a JPEG, and
+ransomware does it to every file it touches. A run of files that are no longer
+what their own names claim, a ransom note, a wave of renames onto one new
+extension: any of those, with the rate, is an alarm. The rate by itself is a
+note in the journal and nothing more.
+
+It can be told to disable the account and end its sessions by itself. That part
+is off until you ask for it.
+
+**And it can see which program is doing it.** Nextcloud cannot: it knows a file
+changed and whose account it belongs to, and nothing more. A daemon that ships
+with this app — `edr/`, Python, one systemd unit — uses fanotify to attach a
+process to every write, which is the difference between a sync client uploading
+what ransomware did on somebody's laptop and something on this server writing
+into the data directory itself. The first is a stolen laptop. The second is a
+stolen server.
+
+When it finds the second, it **suspends** the process rather than killing it:
+frozen where it stood, nothing lost, and a person decides. It never touches
+php-fpm, whatever it finds — stopping that stops Nextcloud for everybody, and
+the thing to stop in that case is the session. See [edr/README.md](edr/README.md)
+for how it scores what it sees, and why rate is worth one point out of five.
+
+**Asks ClamAV, but only about what already looks wrong.** Not every upload —
+that is a different job with a different cost, and Nextcloud has an app for it.
+The files that caused a suspicion, and the binary of any program writing where it
+should not be.
 
 **Watches links rather than lecturing about them.** A public link without a
 password is not a mistake. It is the most useful thing Nextcloud does — a folder
@@ -238,6 +267,8 @@ running it is better placed to make them.
 | **Public links** | Whether to watch how links are used, how big a crowd is worth mentioning, how far above a link's own record it has to be, and how many refused password attempts count as guessing |
 | **Files changing very fast** | Whether to watch, over what window, how many rewrites, deletes or renames-to-one-extension, and whether to raise an alarm or disable the account outright |
 | **Asking the server what it serves** | Whether to probe, any extra paths particular to this installation, and how many days' warning the certificate gets |
+| **Which program is writing** | Whether the process watcher is expected, and where it leaves its reports |
+| **A scanner to ask** | Whether to use ClamAV, its socket, and how much of a file to send |
 
 ## What it stores
 

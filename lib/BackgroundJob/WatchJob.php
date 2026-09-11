@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace OCA\Sentinel\BackgroundJob;
 
 use OCA\Sentinel\Service\Baseline;
+use OCA\Sentinel\Service\Edr;
 use OCA\Sentinel\Service\Exposure;
+use OCA\Sentinel\Service\Inventory;
 use OCA\Sentinel\Service\Journal;
 use OCA\Sentinel\Service\LinkWatch;
 use OCA\Sentinel\Service\Posture;
@@ -36,6 +38,8 @@ class WatchJob extends TimedJob {
 		private Posture $posture,
 		private Baseline $baseline,
 		private Exposure $exposure,
+		private Edr $edr,
+		private Inventory $inventory,
 		private LinkWatch $links,
 		private Journal $journal,
 		private Settings $settings,
@@ -60,6 +64,12 @@ class WatchJob extends TimedJob {
 			$this->compareFilesOccasionally();
 		} catch (\Throwable $e) {
 			$this->logger->error('Sentinel could not compare the installation against its baseline', ['exception' => $e]);
+		}
+
+		try {
+			$this->collectFromOutside();
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not read what the process watcher left', ['exception' => $e]);
 		}
 
 		try {
@@ -89,6 +99,118 @@ class WatchJob extends TimedJob {
 		// Leave nothing behind that nobody will read.
 		$this->journal->prune();
 		$this->links->prune();
+	}
+
+	/**
+	 * Whatever the daemon outside has left for us.
+	 *
+	 * It has already acted by the time this runs — freezing a process cannot
+	 * wait a quarter of an hour for a cron job — so this is not the response.
+	 * It is the record, and the way an administrator hears about it.
+	 */
+	private function collectFromOutside(): void {
+		foreach ($this->edr->pending() as $report) {
+			$uid = (string)($report['uid'] ?? '');
+			$verdict = (string)($report['verdict'] ?? '');
+			if ($uid === '' || $verdict === 'quiet') {
+				continue;
+			}
+
+			$process = $report['process'] ?? null;
+			$action = $report['action'] ?? [];
+			$what = (string)($action['what'] ?? 'report');
+
+			$summary = $verdict === 'ransomware'
+				? 'The process watcher believes ' . $uid . '\'s files are being encrypted.'
+				: 'The process watcher thinks something is off with ' . $uid . '\'s files.';
+
+			$program = '';
+			if (is_array($process)) {
+				// The executable is the honest answer, but a process that has
+				// already exited no longer has one; its name and command line
+				// were captured while it was alive and are the next best thing.
+				$program = (string)($process['exe'] ?? '');
+				if ($program === '') {
+					$program = (string)($process['name'] ?? '');
+				}
+			}
+
+			if ($program !== '') {
+				$summary .= ' Written by ' . $program . ' (pid ' . ($process['pid'] ?? '?') . ').';
+				$line = (string)($process['cmdline'] ?? '');
+				if ($line !== '') {
+					$summary .= ' Command: ' . mb_substr($line, 0, 120) . '.';
+				}
+			} else {
+				$summary .= ' Written through the web server, so the client holding the session is the thing to stop.';
+			}
+
+			if ($what === 'suspend' && ($action['pids'] ?? []) !== []) {
+				$summary .= ' It has been frozen, not killed: nothing it holds is lost and you decide what happens next.';
+			} elseif ($what === 'kill' && ($action['pids'] ?? []) !== []) {
+				$summary .= ' It has been killed.';
+			}
+
+			$summary .= $this->carryOut($report, $uid);
+
+			$this->journal->record(
+				'sentinel_edr_' . ($verdict === 'ransomware' ? 'ransomware' : 'suspicion'),
+				$verdict === 'ransomware' ? Journal::ALARM : Journal::WARNING,
+				$summary,
+				subject: $uid,
+				actor: $uid,
+				address: null,
+				detail: $report,
+				// Every distinct report is worth keeping; the daemon already
+				// holds itself to one a minute per account.
+				quiet: 0,
+			);
+		}
+	}
+
+	/**
+	 * Do what the daemon asked for and could not do itself.
+	 *
+	 * It runs as root and Nextcloud does not, so it has to shell out to occ to
+	 * end an account's sessions — and that can fail for reasons that have
+	 * nothing to do with the attack: a wrong path in its configuration, a
+	 * sandbox that will not let it run, an installation moved since. A response
+	 * that silently did not happen is worse than one that was never designed,
+	 * so the request travels in the report and Nextcloud honours it here if the
+	 * daemon could not.
+	 *
+	 * Late, by up to one run of this job. Better than never, and the daemon has
+	 * already frozen anything it could freeze by the time we get here.
+	 *
+	 * @param array<string, mixed> $report
+	 */
+	private function carryOut(array $report, string $uid): string {
+		$request = $report['request'] ?? [];
+		if (!is_array($request) || !($request['endSessions'] ?? false)) {
+			return '';
+		}
+
+		$alreadyDone = str_starts_with((string)($report['sessions'] ?? ''), 'sessions ended');
+		if ($alreadyDone) {
+			return ' Its sessions were ended at the time.';
+		}
+
+		$ended = $this->inventory->revokeAllTokens($uid);
+		$disabled = false;
+		if ($ended && ($request['disable'] ?? false)) {
+			$user = $this->users->get($uid);
+			if ($user !== null) {
+				$user->setEnabled(false);
+				$disabled = true;
+			}
+		}
+
+		if (!$ended) {
+			return ' Its sessions could not be ended; the server log says why.';
+		}
+		return $disabled
+			? ' Its sessions have now been ended and the account disabled.'
+			: ' Its sessions have now been ended.';
 	}
 
 	/**

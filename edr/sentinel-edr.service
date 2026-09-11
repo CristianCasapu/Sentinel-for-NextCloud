@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 Cristian Casapu
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[Unit]
+Description=Sentinel EDR — watches which process writes into the Nextcloud data directory
+Documentation=https://github.com/CristianCasapu/Sentinel-for-NextCloud
+After=network.target
+Wants=clamav-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m sentinel_edr --config /etc/sentinel-edr/config.ini
+WorkingDirectory=/opt/sentinel-edr
+Environment=PYTHONPATH=/opt/sentinel-edr
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+
+# Six capabilities, and it needs every one of them:
+#   SYS_ADMIN        fanotify itself
+#   DAC_READ_SEARCH  reading files it is told about, whoever owns them
+#   SYS_PTRACE       reading /proc/<pid>/exe of a process owned by somebody
+#                    else, which is the whole point — without it the daemon can
+#                    see that something wrote a file and not what that
+#                    something is
+#   KILL             suspending it
+#   SETUID, SETGID   dropping to the account that owns Nextcloud in order to
+#                    run occ. Dropping privilege, never taking it — and the
+#                    reason this does not use sudo, which cannot work under
+#                    NoNewPrivileges and would need a sudoers rule that is
+#                    itself a way in.
+# Everything else is taken away.
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_KILL CAP_SETUID CAP_SETGID
+AmbientCapabilities=CAP_SYS_ADMIN CAP_DAC_READ_SEARCH CAP_SYS_PTRACE CAP_KILL CAP_SETUID CAP_SETGID
+NoNewPrivileges=yes
+# full rather than strict: /usr and /boot stay read-only, but occ has to be able
+# to write its log, and a Nextcloud installation can live anywhere. The paths it
+# actually needs are added by install.sh as a drop-in, read out of config.ini —
+# because only that file knows where this installation is.
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/sentinel-edr
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+# It reads files it is told about and stops processes. It never needs the
+# network, and saying so means a compromise of this daemon cannot phone home.
+PrivateNetwork=no
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

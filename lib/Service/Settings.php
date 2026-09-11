@@ -79,6 +79,20 @@ class Settings {
 		'churn_deletes' => [200, 'int', 10, 1000000],
 		'churn_renames' => [200, 'int', 10, 1000000],
 		'churn_response' => ['tell', 'enum:tell,lock'],
+		// Rate opens the question. Something about the files themselves has to
+		// answer it before anybody is accused of anything.
+		'churn_require_evidence' => [true, 'bool'],
+		'churn_sample_every' => [3, 'int', 1, 100],
+		'churn_mismatch_floor' => [5, 'int', 1, 10000],
+		'churn_mismatch_ratio' => [50, 'int', 1, 100],
+
+		// The process watcher outside, and the virus scanner
+		'edr_spool' => ['/var/lib/sentinel-edr/spool', 'string'],
+		'edr_expected' => [true, 'bool'],
+		'clam_enabled' => [true, 'bool'],
+		'clam_socket' => ['/run/clamav/clamd.ctl', 'string'],
+		'clam_max_bytes' => [33554432, 'int', 65536, 1073741824],
+		'clam_sample' => [25, 'int', 1, 1000],
 
 		// Checking the server from outside itself
 		'probe_enabled' => [true, 'bool'],
@@ -245,6 +259,54 @@ class Settings {
 
 	public function churnResponse(): string {
 		return (string)$this->get('churn_response');
+	}
+
+	/**
+	 * Whether the rate alone may accuse somebody.
+	 *
+	 * On, because it must not. A photo library being moved and a folder being
+	 * encrypted look identical if all you count is files per minute, and an
+	 * alarm that fires on the first is one nobody believes when it fires on the
+	 * second.
+	 */
+	public function churnRequireEvidence(): bool {
+		return (bool)$this->get('churn_require_evidence');
+	}
+
+	public function churnSampleEvery(): int {
+		return (int)$this->get('churn_sample_every');
+	}
+
+	public function churnMismatchFloor(): int {
+		return (int)$this->get('churn_mismatch_floor');
+	}
+
+	public function churnMismatchRatio(): int {
+		return (int)$this->get('churn_mismatch_ratio');
+	}
+
+	public function edrSpool(): string {
+		return (string)$this->get('edr_spool');
+	}
+
+	public function edrExpected(): bool {
+		return (bool)$this->get('edr_expected');
+	}
+
+	public function clamEnabled(): bool {
+		return (bool)$this->get('clam_enabled');
+	}
+
+	public function clamSocket(): string {
+		return (string)$this->get('clam_socket');
+	}
+
+	public function clamMaxBytes(): int {
+		return (int)$this->get('clam_max_bytes');
+	}
+
+	public function clamSample(): int {
+		return (int)$this->get('clam_sample');
 	}
 
 	public function probeEnabled(): bool {
