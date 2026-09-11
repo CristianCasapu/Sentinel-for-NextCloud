@@ -25,8 +25,7 @@ use OCP\App\Events\AppDisableEvent;
 use OCP\App\Events\AppEnableEvent;
 use OCP\App\Events\AppUpdateEvent;
 use OCP\Authentication\Events\LoginFailedEvent;
-use OCP\Authentication\TwoFactorAuth\TwoFactorProviderForUserDisabled;
-use OCP\Authentication\TwoFactorAuth\TwoFactorProviderForUserUnregistered;
+use OCP\Authentication\TwoFactorAuth\TwoFactorProviderChallengeFailed;
 use OCP\Group\Events\SubAdminAddedEvent;
 use OCP\Group\Events\UserAddedEvent;
 use OCP\Group\Events\UserRemovedEvent;
@@ -65,8 +64,10 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(SubAdminAddedEvent::class, PrivilegeListener::class);
 		$context->registerEventListener(UserCreatedEvent::class, PrivilegeListener::class);
 		$context->registerEventListener(UserDeletedEvent::class, PrivilegeListener::class);
-		$context->registerEventListener(TwoFactorProviderForUserDisabled::class, PrivilegeListener::class);
-		$context->registerEventListener(TwoFactorProviderForUserUnregistered::class, PrivilegeListener::class);
+		// Not the "provider disabled" or "unregistered" events: neither means
+		// what its name says. A second factor actually going away is found by
+		// comparing state in the background job.
+		$context->registerEventListener(TwoFactorProviderChallengeFailed::class, PrivilegeListener::class);
 
 		// Links: made, removed, and used.
 		$context->registerEventListener(ShareCreatedEvent::class, ShareListener::class);

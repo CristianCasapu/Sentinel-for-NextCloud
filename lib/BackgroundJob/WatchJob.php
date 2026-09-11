@@ -15,8 +15,11 @@ use OCA\Sentinel\Service\Posture;
 use OCA\Sentinel\Service\Settings;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use OCP\Authentication\TwoFactorAuth\IRegistry;
 use OCP\IAppConfig;
 use OCP\IConfig;
+use OCP\IGroupManager;
+use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -38,6 +41,9 @@ class WatchJob extends TimedJob {
 		private Settings $settings,
 		private IAppConfig $config,
 		private IConfig $systemConfig,
+		private IUserManager $users,
+		private IGroupManager $groups,
+		private IRegistry $twoFactor,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct($time);
@@ -54,6 +60,12 @@ class WatchJob extends TimedJob {
 			$this->compareFilesOccasionally();
 		} catch (\Throwable $e) {
 			$this->logger->error('Sentinel could not compare the installation against its baseline', ['exception' => $e]);
+		}
+
+		try {
+			$this->watchSecondFactors();
+		} catch (\Throwable $e) {
+			$this->logger->error('Sentinel could not read who has a second factor', ['exception' => $e]);
 		}
 
 		try {
@@ -77,6 +89,59 @@ class WatchJob extends TimedJob {
 		// Leave nothing behind that nobody will read.
 		$this->journal->prune();
 		$this->links->prune();
+	}
+
+	/**
+	 * Whether anybody's second factor has gone away.
+	 *
+	 * Not done with events, because Nextcloud's two-factor events do not mean
+	 * what their names suggest — one of them fires when a code is typed wrongly
+	 * and another during an ordinary sign-in. Comparing the actual state is
+	 * duller and correct, and it also catches a second factor removed with occ
+	 * or straight out of the database, which no event would have mentioned at
+	 * all.
+	 */
+	private function watchSecondFactors(): void {
+		$now = [];
+		$this->users->callForAllUsers(function ($user) use (&$now): void {
+			$protected = false;
+			foreach ($this->twoFactor->getProviderStates($user) as $enabled) {
+				if ($enabled === true) {
+					$protected = true;
+					break;
+				}
+			}
+			$now[$user->getUID()] = $protected;
+		});
+
+		$before = json_decode($this->config->getValueString(Settings::APP, 'two_factor_state', ''), true);
+		$this->config->setValueString(
+			Settings::APP,
+			'two_factor_state',
+			json_encode($now, JSON_UNESCAPED_SLASHES) ?: '',
+		);
+
+		if (!is_array($before) || $before === []) {
+			// Nothing to compare against on the first run, and announcing every
+			// account as new would be noise on the day of installation.
+			return;
+		}
+
+		foreach ($now as $uid => $protected) {
+			if ($protected || !($before[$uid] ?? false)) {
+				continue;
+			}
+			$this->journal->record(
+				'sentinel_two_factor_off',
+				Journal::ALARM,
+				$uid . ' had a second factor and no longer has one.',
+				subject: $uid,
+				actor: null,
+				address: null,
+				detail: ['uid' => $uid, 'administrator' => $this->groups->isAdmin($uid)],
+				quiet: 0,
+			);
+		}
 	}
 
 	/**

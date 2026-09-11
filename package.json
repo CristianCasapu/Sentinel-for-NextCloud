@@ -1,6 +1,6 @@
 {
   "name": "sentinel",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Watches the things Nextcloud's own defences do not watch, and tells you when they change",
   "private": true,
   "license": "AGPL-3.0-or-later",

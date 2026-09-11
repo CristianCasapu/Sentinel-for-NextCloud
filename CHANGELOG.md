@@ -5,6 +5,37 @@ All notable changes to Sentinel are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 the versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-09-11
+
+### Fixed
+
+* **The app page could not be opened at all.** `/apps/sentinel/` refused every
+  visit with "CSRF check failed", because the page route did not declare
+  `NoCSRFRequired` and a browser following a link carries no request token.
+  The admin page was unaffected, which is how it went unnoticed: the page was
+  only ever tested without a session (a 401, which hid the real answer) and
+  through the API with an application password, where the CSRF check does not
+  apply. Every route is still administrator-only, and a non-administrator is
+  still refused.
+* **Two-factor authentication being switched off was reported when it was not.**
+  Nextcloud's two-factor events do not mean what their names suggest:
+  `TwoFactorProviderForUserDisabled` fires when somebody types a wrong code, and
+  `TwoFactorProviderForUserUnregistered` fires during an ordinary sign-in
+  whenever the registry tidies up a provider that is no longer installed. Both
+  were being reported as an alarm. They are no longer listened to; a second
+  factor actually going away is now found by comparing state in the background
+  job, which is duller, correct, and also catches it being removed with occ or
+  straight out of the database.
+
+### Added
+
+* **Repeated wrong second factors are now an alarm.** Eight in a quarter of an
+  hour means the password has already been accepted eight times and only the
+  second factor is in the way — which is worth knowing long before whoever has
+  it finds a way past.
+
+[1.2.1]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+
 ## [1.2.0] — 2026-09-11
 
 The admin page stops being a settings form and becomes the whole app, and
@@ -37,7 +68,7 @@ findings stop waiting for somebody to come and look at them.
 * The bell settings moved into a **Being told** group at the top of the settings,
   next to the mail settings, since they answer the same question.
 
-[1.2.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases/tag/latest
+[1.2.0]: https://github.com/CristianCasapu/Sentinel-for-NextCloud/releases
 
 ## [1.1.0] — 2026-09-11
 

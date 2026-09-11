@@ -35,7 +35,7 @@ What is watched is how a link is used compared with how that same link is normal
 
 Sentinel changes nothing on its own unless you ask it to. It reports, and it acts only when told.
     ]]></description>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
     <licence>agpl</licence>
     <author mail="casapucristian@gmail.com">Cristian Casapu</author>
     <namespace>Sentinel</namespace>

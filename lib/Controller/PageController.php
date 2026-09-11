@@ -10,6 +10,7 @@ namespace OCA\Sentinel\Controller;
 use OCA\Sentinel\Service\Journal;
 use OCA\Sentinel\Service\Settings;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
@@ -26,10 +27,20 @@ class PageController extends Controller {
 	}
 
 	/**
-	 * The page itself. Administrators only, which the route enforces; there is
-	 * nothing here an ordinary account could act on and a great deal it should
-	 * not see.
+	 * The page itself.
+	 *
+	 * Administrators only: the App Framework requires an administrator unless a
+	 * method says otherwise, and this one deliberately does not say otherwise.
+	 * There is nothing here an ordinary account could act on and a great deal it
+	 * should not see.
+	 *
+	 * NoCSRFRequired because this is a page somebody navigates to. A browser
+	 * following a link or a bookmark carries no request token, so without this
+	 * every visit is refused as a forgery — which is exactly what it did.
+	 * Nothing is acted on here; every operation goes through the API, where the
+	 * token is sent and checked.
 	 */
+	#[NoCSRFRequired]
 	public function index(): TemplateResponse {
 		$this->initialState->provideInitialState('settings', $this->settings->all());
 		$this->initialState->provideInitialState('defaults', $this->settings->defaults());
